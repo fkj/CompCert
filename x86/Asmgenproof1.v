@@ -700,9 +700,9 @@ Qed.
 Lemma compare_floats_spec:
   forall rs n1 n2,
   let rs' := nextinstr (compare_floats (Vfloat n1) (Vfloat n2) rs) in
-     rs'#ZF = Val.of_bool (negb (Float.cmp Cne n1 n2))
-  /\ rs'#CF = Val.of_bool (negb (Float.cmp Cge n1 n2))
-  /\ rs'#PF = Val.of_bool (negb (Float.cmp Ceq n1 n2 || Float.cmp Clt n1 n2 || Float.cmp Cgt n1 n2))
+     rs'#ZF = Val.of_bool (negb (Float.cmp FCne n1 n2))
+  /\ rs'#CF = Val.of_bool (negb (Float.cmp FCge n1 n2))
+  /\ rs'#PF = Val.of_bool (negb (Float.cmp FCeq n1 n2 || Float.cmp FClt n1 n2 || Float.cmp FCgt n1 n2))
   /\ (forall r, data_preg r = true -> rs'#r = rs#r).
 Proof.
   intros. unfold rs'; unfold compare_floats.
@@ -715,9 +715,9 @@ Qed.
 Lemma compare_floats32_spec:
   forall rs n1 n2,
   let rs' := nextinstr (compare_floats32 (Vsingle n1) (Vsingle n2) rs) in
-     rs'#ZF = Val.of_bool (negb (Float32.cmp Cne n1 n2))
-  /\ rs'#CF = Val.of_bool (negb (Float32.cmp Cge n1 n2))
-  /\ rs'#PF = Val.of_bool (negb (Float32.cmp Ceq n1 n2 || Float32.cmp Clt n1 n2 || Float32.cmp Cgt n1 n2))
+     rs'#ZF = Val.of_bool (negb (Float32.cmp FCne n1 n2))
+  /\ rs'#CF = Val.of_bool (negb (Float32.cmp FCge n1 n2))
+  /\ rs'#PF = Val.of_bool (negb (Float32.cmp FCeq n1 n2 || Float32.cmp FClt n1 n2 || Float32.cmp FCgt n1 n2))
   /\ (forall r, data_preg r = true -> rs'#r = rs#r).
 Proof.
   intros. unfold rs'; unfold compare_floats32.
@@ -743,10 +743,10 @@ Definition eval_extcond (xc: extcond) (rs: regset) : option bool :=
       end
   end.
 
-Definition swap_floats {A: Type} (c: comparison) (n1 n2: A) : A :=
+Definition swap_floats {A: Type} (c: fp_comparison) (n1 n2: A) : A :=
   match c with
-  | Clt | Cle => n2
-  | Ceq | Cne | Cgt | Cge => n1
+  | FClt | FCle | FCnotlt | FCnotle => n2
+  | FCeq | FCne | FCgt | FCge | FCnotgt | FCnotge => n1
   end.
 
 Lemma testcond_for_float_comparison_correct:
@@ -763,86 +763,64 @@ Proof.
   intros [A [B [C D]]].
   unfold eval_extcond, eval_testcond. rewrite A; rewrite B; rewrite C.
   destruct c; simpl.
-(* eq *)
+- (* eq *)
   rewrite Float.cmp_ne_eq.
-  caseEq (Float.cmp Ceq n1 n2); intros.
+  destruct (Float.cmp FCeq n1 n2) eqn:EQ.
   auto.
-  simpl. destruct (Float.cmp Clt n1 n2 || Float.cmp Cgt n1 n2); auto.
-(* ne *)
+  simpl. destruct (Float.cmp FClt n1 n2 || Float.cmp FCgt n1 n2); auto.
+- (* ne *)
   rewrite Float.cmp_ne_eq.
-  caseEq (Float.cmp Ceq n1 n2); intros.
+  destruct (Float.cmp FCeq n1 n2) eqn:EQ.
   auto.
-  simpl. destruct (Float.cmp Clt n1 n2 || Float.cmp Cgt n1 n2); auto.
-(* lt *)
-  rewrite <- (Float.cmp_swap Cge n1 n2).
-  rewrite <- (Float.cmp_swap Cne n1 n2).
+  simpl. destruct (Float.cmp FClt n1 n2 || Float.cmp FCgt n1 n2); auto.
+- (* lt *)
+  rewrite <- (Float.cmp_swap FCge n1 n2).
+  rewrite <- (Float.cmp_swap FCne n1 n2).
   simpl.
   rewrite Float.cmp_ne_eq. rewrite Float.cmp_le_lt_eq.
-  caseEq (Float.cmp Clt n1 n2); intros; simpl.
-  caseEq (Float.cmp Ceq n1 n2); intros; simpl.
-  elimtype False. eapply Float.cmp_lt_eq_false; eauto.
+  destruct (Float.cmp FClt n1 n2) eqn:LT; simpl.
+  destruct (Float.cmp FCeq n1 n2) eqn:EQ; simpl.
+  exfalso. eapply Float.cmp_lt_eq_false; eauto.
   auto.
-  destruct (Float.cmp Ceq n1 n2); auto.
-(* le *)
-  rewrite <- (Float.cmp_swap Cge n1 n2). simpl.
-  destruct (Float.cmp Cle n1 n2); auto.
-(* gt *)
+  destruct (Float.cmp FCeq n1 n2); auto.
+- (* le *)
+  rewrite <- (Float.cmp_swap FCge n1 n2). simpl.
+  destruct (Float.cmp FCle n1 n2); auto.
+- (* gt *)
   rewrite Float.cmp_ne_eq. rewrite Float.cmp_ge_gt_eq.
-  caseEq (Float.cmp Cgt n1 n2); intros; simpl.
-  caseEq (Float.cmp Ceq n1 n2); intros; simpl.
-  elimtype False. eapply Float.cmp_gt_eq_false; eauto.
+  destruct (Float.cmp FCgt n1 n2) eqn:GT; simpl.
+  destruct (Float.cmp FCeq n1 n2) eqn:EQ; simpl.
+  exfalso. eapply Float.cmp_gt_eq_false; eauto.
   auto.
-  destruct (Float.cmp Ceq n1 n2); auto.
-(* ge *)
-  destruct (Float.cmp Cge n1 n2); auto.
-Qed.
-
-Lemma testcond_for_neg_float_comparison_correct:
-  forall c n1 n2 rs,
-  eval_extcond (testcond_for_condition (Cnotcompf c))
-               (nextinstr (compare_floats (Vfloat (swap_floats c n1 n2))
-                                          (Vfloat (swap_floats c n2 n1)) rs)) =
-  Some(negb(Float.cmp c n1 n2)).
-Proof.
-  intros.
-  generalize (compare_floats_spec rs (swap_floats c n1 n2) (swap_floats c n2 n1)).
-  set (rs' := nextinstr (compare_floats (Vfloat (swap_floats c n1 n2))
-                                        (Vfloat (swap_floats c n2 n1)) rs)).
-  intros [A [B [C D]]].
-  unfold eval_extcond, eval_testcond. rewrite A; rewrite B; rewrite C.
-  destruct c; simpl.
-(* eq *)
-  rewrite Float.cmp_ne_eq.
-  caseEq (Float.cmp Ceq n1 n2); intros.
-  auto.
-  simpl. destruct (Float.cmp Clt n1 n2 || Float.cmp Cgt n1 n2); auto.
-(* ne *)
-  rewrite Float.cmp_ne_eq.
-  caseEq (Float.cmp Ceq n1 n2); intros.
-  auto.
-  simpl. destruct (Float.cmp Clt n1 n2 || Float.cmp Cgt n1 n2); auto.
-(* lt *)
-  rewrite <- (Float.cmp_swap Cge n1 n2).
-  rewrite <- (Float.cmp_swap Cne n1 n2).
+  destruct (Float.cmp FCeq n1 n2); auto.
+- (* ge *)
+  destruct (Float.cmp FCge n1 n2); auto.
+- (* notlt *)
+  replace (Float.cmp FCnotlt n1 n2) with (negb (Float.cmp FClt n1 n2)) by (symmetry; apply (Float.cmp_negate FClt)).
+  rewrite <- (Float.cmp_swap FCge n1 n2).
+  rewrite <- (Float.cmp_swap FCne n1 n2).
   simpl.
   rewrite Float.cmp_ne_eq. rewrite Float.cmp_le_lt_eq.
-  caseEq (Float.cmp Clt n1 n2); intros; simpl.
-  caseEq (Float.cmp Ceq n1 n2); intros; simpl.
-  elimtype False. eapply Float.cmp_lt_eq_false; eauto.
+  destruct (Float.cmp FClt n1 n2) eqn:LT; simpl.
+  destruct (Float.cmp FCeq n1 n2) eqn:EQ; simpl.
+  exfalso. eapply Float.cmp_lt_eq_false; eauto.
   auto.
-  destruct (Float.cmp Ceq n1 n2); auto.
-(* le *)
-  rewrite <- (Float.cmp_swap Cge n1 n2). simpl.
-  destruct (Float.cmp Cle n1 n2); auto.
-(* gt *)
+  destruct (Float.cmp FCeq n1 n2); auto.
+- (* notle *)
+  replace (Float.cmp FCnotle n1 n2) with (negb (Float.cmp FCle n1 n2)) by (symmetry; apply (Float.cmp_negate FCle)).
+  rewrite <- (Float.cmp_swap FCge n1 n2). simpl.
+  destruct (Float.cmp FCle n1 n2); auto.
+- (* notgt *)
+  replace (Float.cmp FCnotgt n1 n2) with (negb (Float.cmp FCgt n1 n2)) by (symmetry; apply (Float.cmp_negate FCgt)).
   rewrite Float.cmp_ne_eq. rewrite Float.cmp_ge_gt_eq.
-  caseEq (Float.cmp Cgt n1 n2); intros; simpl.
-  caseEq (Float.cmp Ceq n1 n2); intros; simpl.
-  elimtype False. eapply Float.cmp_gt_eq_false; eauto.
+  destruct (Float.cmp FCgt n1 n2) eqn:GT; simpl.
+  destruct (Float.cmp FCeq n1 n2) eqn:EQ; simpl.
+  exfalso. eapply Float.cmp_gt_eq_false; eauto.
   auto.
-  destruct (Float.cmp Ceq n1 n2); auto.
-(* ge *)
-  destruct (Float.cmp Cge n1 n2); auto.
+  destruct (Float.cmp FCeq n1 n2); auto.
+- (* notge *)
+  replace (Float.cmp FCnotge n1 n2) with (negb (Float.cmp FCge n1 n2)) by (symmetry; apply (Float.cmp_negate FCge)).
+  destruct (Float.cmp FCge n1 n2); auto.
 Qed.
 
 Lemma testcond_for_float32_comparison_correct:
@@ -855,91 +833,70 @@ Proof.
   intros.
   generalize (compare_floats32_spec rs (swap_floats c n1 n2) (swap_floats c n2 n1)).
   set (rs' := nextinstr (compare_floats32 (Vsingle (swap_floats c n1 n2))
-                                        (Vsingle (swap_floats c n2 n1)) rs)).
-  intros [A [B [C D]]].
-  unfold eval_extcond, eval_testcond. rewrite A; rewrite B; rewrite C.
-  destruct c; simpl.
-(* eq *)
-  rewrite Float32.cmp_ne_eq.
-  caseEq (Float32.cmp Ceq n1 n2); intros.
-  auto.
-  simpl. destruct (Float32.cmp Clt n1 n2 || Float32.cmp Cgt n1 n2); auto.
-(* ne *)
-  rewrite Float32.cmp_ne_eq.
-  caseEq (Float32.cmp Ceq n1 n2); intros.
-  auto.
-  simpl. destruct (Float32.cmp Clt n1 n2 || Float32.cmp Cgt n1 n2); auto.
-(* lt *)
-  rewrite <- (Float32.cmp_swap Cge n1 n2).
-  rewrite <- (Float32.cmp_swap Cne n1 n2).
-  simpl.
-  rewrite Float32.cmp_ne_eq. rewrite Float32.cmp_le_lt_eq.
-  caseEq (Float32.cmp Clt n1 n2); intros; simpl.
-  caseEq (Float32.cmp Ceq n1 n2); intros; simpl.
-  elimtype False. eapply Float32.cmp_lt_eq_false; eauto.
-  auto.
-  destruct (Float32.cmp Ceq n1 n2); auto.
-(* le *)
-  rewrite <- (Float32.cmp_swap Cge n1 n2). simpl.
-  destruct (Float32.cmp Cle n1 n2); auto.
-(* gt *)
-  rewrite Float32.cmp_ne_eq. rewrite Float32.cmp_ge_gt_eq.
-  caseEq (Float32.cmp Cgt n1 n2); intros; simpl.
-  caseEq (Float32.cmp Ceq n1 n2); intros; simpl.
-  elimtype False. eapply Float32.cmp_gt_eq_false; eauto.
-  auto.
-  destruct (Float32.cmp Ceq n1 n2); auto.
-(* ge *)
-  destruct (Float32.cmp Cge n1 n2); auto.
-Qed.
-
-Lemma testcond_for_neg_float32_comparison_correct:
-  forall c n1 n2 rs,
-  eval_extcond (testcond_for_condition (Cnotcompfs c))
-               (nextinstr (compare_floats32 (Vsingle (swap_floats c n1 n2))
-                                            (Vsingle (swap_floats c n2 n1)) rs)) =
-  Some(negb(Float32.cmp c n1 n2)).
-Proof.
-  intros.
-  generalize (compare_floats32_spec rs (swap_floats c n1 n2) (swap_floats c n2 n1)).
-  set (rs' := nextinstr (compare_floats32 (Vsingle (swap_floats c n1 n2))
                                           (Vsingle (swap_floats c n2 n1)) rs)).
   intros [A [B [C D]]].
   unfold eval_extcond, eval_testcond. rewrite A; rewrite B; rewrite C.
   destruct c; simpl.
-(* eq *)
+- (* eq *)
   rewrite Float32.cmp_ne_eq.
-  caseEq (Float32.cmp Ceq n1 n2); intros.
+  destruct (Float32.cmp FCeq n1 n2) eqn:EQ.
   auto.
-  simpl. destruct (Float32.cmp Clt n1 n2 || Float32.cmp Cgt n1 n2); auto.
-(* ne *)
+  simpl. destruct (Float32.cmp FClt n1 n2 || Float32.cmp FCgt n1 n2); auto.
+- (* ne *)
   rewrite Float32.cmp_ne_eq.
-  caseEq (Float32.cmp Ceq n1 n2); intros.
+  destruct (Float32.cmp FCeq n1 n2) eqn:EQ.
   auto.
-  simpl. destruct (Float32.cmp Clt n1 n2 || Float32.cmp Cgt n1 n2); auto.
-(* lt *)
-  rewrite <- (Float32.cmp_swap Cge n1 n2).
-  rewrite <- (Float32.cmp_swap Cne n1 n2).
+  simpl. destruct (Float32.cmp FClt n1 n2 || Float32.cmp FCgt n1 n2); auto.
+- (* lt *)
+  rewrite <- (Float32.cmp_swap FCge n1 n2).
+  rewrite <- (Float32.cmp_swap FCne n1 n2).
   simpl.
   rewrite Float32.cmp_ne_eq. rewrite Float32.cmp_le_lt_eq.
-  caseEq (Float32.cmp Clt n1 n2); intros; simpl.
-  caseEq (Float32.cmp Ceq n1 n2); intros; simpl.
-  elimtype False. eapply Float32.cmp_lt_eq_false; eauto.
+  destruct (Float32.cmp FClt n1 n2) eqn:LT; simpl.
+  destruct (Float32.cmp FCeq n1 n2) eqn:EQ; simpl.
+  exfalso. eapply Float32.cmp_lt_eq_false; eauto.
   auto.
-  destruct (Float32.cmp Ceq n1 n2); auto.
-(* le *)
-  rewrite <- (Float32.cmp_swap Cge n1 n2). simpl.
-  destruct (Float32.cmp Cle n1 n2); auto.
-(* gt *)
+  destruct (Float32.cmp FCeq n1 n2); auto.
+- (* le *)
+  rewrite <- (Float32.cmp_swap FCge n1 n2). simpl.
+  destruct (Float32.cmp FCle n1 n2); auto.
+- (* gt *)
   rewrite Float32.cmp_ne_eq. rewrite Float32.cmp_ge_gt_eq.
-  caseEq (Float32.cmp Cgt n1 n2); intros; simpl.
-  caseEq (Float32.cmp Ceq n1 n2); intros; simpl.
-  elimtype False. eapply Float32.cmp_gt_eq_false; eauto.
+  destruct (Float32.cmp FCgt n1 n2) eqn:GT; simpl.
+  destruct (Float32.cmp FCeq n1 n2) eqn:EQ; simpl.
+  exfalso. eapply Float32.cmp_gt_eq_false; eauto.
   auto.
-  destruct (Float32.cmp Ceq n1 n2); auto.
-(* ge *)
-  destruct (Float32.cmp Cge n1 n2); auto.
+  destruct (Float32.cmp FCeq n1 n2); auto.
+- (* ge *)
+  destruct (Float32.cmp FCge n1 n2); auto.
+- (* notlt *)
+  replace (Float32.cmp FCnotlt n1 n2) with (negb (Float32.cmp FClt n1 n2)) by (symmetry; apply (Float32.cmp_negate FClt)).
+  rewrite <- (Float32.cmp_swap FCge n1 n2).
+  rewrite <- (Float32.cmp_swap FCne n1 n2).
+  simpl.
+  rewrite Float32.cmp_ne_eq. rewrite Float32.cmp_le_lt_eq.
+  destruct (Float32.cmp FClt n1 n2) eqn:LT; simpl.
+  destruct (Float32.cmp FCeq n1 n2) eqn:EQ; simpl.
+  exfalso. eapply Float32.cmp_lt_eq_false; eauto.
+  auto.
+  destruct (Float32.cmp FCeq n1 n2); auto.
+- (* notle *)
+  replace (Float32.cmp FCnotle n1 n2) with (negb (Float32.cmp FCle n1 n2)) by (symmetry; apply (Float32.cmp_negate FCle)).
+  rewrite <- (Float32.cmp_swap FCge n1 n2). simpl.
+  destruct (Float32.cmp FCle n1 n2); auto.
+- (* notgt *)
+  replace (Float32.cmp FCnotgt n1 n2) with (negb (Float32.cmp FCgt n1 n2)) by (symmetry; apply (Float32.cmp_negate FCgt)).
+  rewrite Float32.cmp_ne_eq. rewrite Float32.cmp_ge_gt_eq.
+  destruct (Float32.cmp FCgt n1 n2) eqn:GT; simpl.
+  destruct (Float32.cmp FCeq n1 n2) eqn:EQ; simpl.
+  exfalso. eapply Float32.cmp_gt_eq_false; eauto.
+  auto.
+  destruct (Float32.cmp FCeq n1 n2); auto.
+- (* notge *)
+  replace (Float32.cmp FCnotge n1 n2) with (negb (Float32.cmp FCge n1 n2)) by (symmetry; apply (Float32.cmp_negate FCge)).
+  destruct (Float32.cmp FCge n1 n2); auto.
 Qed.
+
 
 Remark swap_floats_commut:
   forall (A B: Type) c (f: A -> B) x y, swap_floats c (f x) (f y) = f (swap_floats c x y).
@@ -1047,15 +1004,6 @@ Proof.
   split. destruct (rs x); destruct (rs x0); simpl; auto.
   repeat rewrite swap_floats_commut. apply testcond_for_float_comparison_correct.
   intros. Simplifs. apply compare_floats_inv; auto with asmgen.
-- (* notcompf *)
-  simpl. rewrite (freg_of_eq _ _ EQ). rewrite (freg_of_eq _ _ EQ1).
-  exists (nextinstr (compare_floats (swap_floats c0 (rs x) (rs x0)) (swap_floats c0 (rs x0) (rs x)) rs)).
-  split. apply exec_straight_one.
-  destruct c0; simpl; auto.
-  unfold nextinstr. rewrite Pregmap.gss. rewrite compare_floats_inv; auto with asmgen.
-  split. destruct (rs x); destruct (rs x0); simpl; auto.
-  repeat rewrite swap_floats_commut. apply testcond_for_neg_float_comparison_correct.
-  intros. Simplifs. apply compare_floats_inv; auto with asmgen.
 - (* compfs *)
   simpl. rewrite (freg_of_eq _ _ EQ). rewrite (freg_of_eq _ _ EQ1).
   exists (nextinstr (compare_floats32 (swap_floats c0 (rs x) (rs x0)) (swap_floats c0 (rs x0) (rs x)) rs)).
@@ -1064,15 +1012,6 @@ Proof.
   unfold nextinstr. rewrite Pregmap.gss. rewrite compare_floats32_inv; auto with asmgen.
   split. destruct (rs x); destruct (rs x0); simpl; auto.
   repeat rewrite swap_floats_commut. apply testcond_for_float32_comparison_correct.
-  intros. Simplifs. apply compare_floats32_inv; auto with asmgen.
-- (* notcompfs *)
-  simpl. rewrite (freg_of_eq _ _ EQ). rewrite (freg_of_eq _ _ EQ1).
-  exists (nextinstr (compare_floats32 (swap_floats c0 (rs x) (rs x0)) (swap_floats c0 (rs x0) (rs x)) rs)).
-  split. apply exec_straight_one.
-  destruct c0; simpl; auto.
-  unfold nextinstr. rewrite Pregmap.gss. rewrite compare_floats32_inv; auto with asmgen.
-  split. destruct (rs x); destruct (rs x0); simpl; auto.
-  repeat rewrite swap_floats_commut. apply testcond_for_neg_float32_comparison_correct.
   intros. Simplifs. apply compare_floats32_inv; auto with asmgen.
 - (* maskzero *)
   simpl. rewrite (ireg_of_eq _ _ EQ).

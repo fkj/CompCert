@@ -450,9 +450,9 @@ Definition compare_longs (x y: val) (rs: regset) (m: mem): regset :=
 Definition compare_floats (vx vy: val) (rs: regset) : regset :=
   match vx, vy with
   | Vfloat x, Vfloat y =>
-      rs #ZF  <- (Val.of_bool (negb (Float.cmp Cne x y)))
-         #CF  <- (Val.of_bool (negb (Float.cmp Cge x y)))
-         #PF  <- (Val.of_bool (negb (Float.cmp Ceq x y || Float.cmp Clt x y || Float.cmp Cgt x y)))
+      rs #ZF  <- (Val.of_bool (negb (Float.cmp FCne x y)))
+         #CF  <- (Val.of_bool (negb (Float.cmp FCge x y)))
+         #PF  <- (Val.of_bool (negb (Float.cmp FCeq x y || Float.cmp FClt x y || Float.cmp FCgt x y)))
          #SF  <- Vundef
          #OF  <- Vundef
   | _, _ =>
@@ -462,9 +462,9 @@ Definition compare_floats (vx vy: val) (rs: regset) : regset :=
 Definition compare_floats32 (vx vy: val) (rs: regset) : regset :=
   match vx, vy with
   | Vsingle x, Vsingle y =>
-      rs #ZF  <- (Val.of_bool (negb (Float32.cmp Cne x y)))
-         #CF  <- (Val.of_bool (negb (Float32.cmp Cge x y)))
-         #PF  <- (Val.of_bool (negb (Float32.cmp Ceq x y || Float32.cmp Clt x y || Float32.cmp Cgt x y)))
+      rs #ZF  <- (Val.of_bool (negb (Float32.cmp FCne x y)))
+         #CF  <- (Val.of_bool (negb (Float32.cmp FCge x y)))
+         #PF  <- (Val.of_bool (negb (Float32.cmp FCeq x y || Float32.cmp FClt x y || Float32.cmp FCgt x y)))
          #SF  <- Vundef
          #OF  <- Vundef
   | _, _ =>
