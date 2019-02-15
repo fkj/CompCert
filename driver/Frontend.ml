@@ -94,6 +94,7 @@ let init () =
     | "riscV"   -> if Configuration.model = "64"
                    then Machine.rv64
                    else Machine.rv32
+    | "patmos"  -> Machine.patmos
     | _         -> assert false
   end;
   Builtins.set C2C.builtins;

@@ -237,6 +237,11 @@ let rv64 =
                    struct_passing_style = SP_ref_callee; (* Wrong *)
                    struct_return_style = SR_ref } (* to check *)
 
+let patmos =
+  { ilp32ll64 with name = "patmos";
+                   bigendian = true;
+                   bitfields_msb_first = true }
+
 (* Add GCC extensions re: sizeof and alignof *)
 
 let gcc_extensions c =
