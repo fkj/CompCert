@@ -15,7 +15,7 @@
 (*                                                                     *)
 (* *********************************************************************)
 
-(** Abstract syntax and semantics for RISC-V assembly language. *)
+(** Abstract syntax and semantics for Patmos assembly language. *)
 
 Require Import Coqlib.
 Require Import Maps.
@@ -33,34 +33,22 @@ Require Import Conventions.
 
 (** * Abstract syntax *)
 
-(** Integer registers.  X0 is treated specially because it always reads 
+(** Integer registers.  R0 is treated specially because it always reads 
   as zero and is never used as a destination of an instruction. *)
 
 Inductive ireg: Type :=
-  | X1:  ireg | X2:  ireg | X3:  ireg | X4:  ireg | X5:  ireg
-  | X6:  ireg | X7:  ireg | X8:  ireg | X9:  ireg | X10: ireg
-  | X11: ireg | X12: ireg | X13: ireg | X14: ireg | X15: ireg
-  | X16: ireg | X17: ireg | X18: ireg | X19: ireg | X20: ireg
-  | X21: ireg | X22: ireg | X23: ireg | X24: ireg | X25: ireg
-  | X26: ireg | X27: ireg | X28: ireg | X29: ireg | X30: ireg
-  | X31: ireg.
+  | R1:  ireg | R2:  ireg | R3:  ireg | R4:  ireg | R5:  ireg
+  | R6:  ireg | R7:  ireg | R8:  ireg | R9:  ireg | R10: ireg
+  | R11: ireg | R12: ireg | R13: ireg | R14: ireg | R15: ireg
+  | R16: ireg | R17: ireg | R18: ireg | R19: ireg | R20: ireg
+  | R21: ireg | R22: ireg | R23: ireg | R24: ireg | R25: ireg
+  | R26: ireg | R27: ireg | R28: ireg | R29: ireg | R30: ireg
+  | R31: ireg.
 
 Inductive ireg0: Type :=
-  | X0: ireg0 | X: ireg -> ireg0.
+  | R0: ireg0 | R: ireg -> ireg0.
 
-Coercion X: ireg >-> ireg0.
-
-(** Floating-point registers *)
-
-Inductive freg: Type :=
-  | F0: freg  | F1: freg  | F2: freg  | F3: freg
-  | F4: freg  | F5: freg  | F6: freg  | F7: freg
-  | F8: freg  | F9: freg  | F10: freg | F11: freg
-  | F12: freg | F13: freg | F14: freg | F15: freg
-  | F16: freg | F17: freg | F18: freg | F19: freg
-  | F20: freg | F21: freg | F22: freg | F23: freg
-  | F24: freg | F25: freg | F26: freg | F27: freg
-  | F28: freg | F29: freg | F30: freg | F31: freg.
+Coercion R: ireg >-> ireg0.
 
 Lemma ireg_eq: forall (x y: ireg), {x=y} + {x<>y}.
 Proof. decide equality. Defined.
@@ -68,21 +56,58 @@ Proof. decide equality. Defined.
 Lemma ireg0_eq: forall (x y: ireg0), {x=y} + {x<>y}.
 Proof. decide equality. apply ireg_eq. Defined.
 
-Lemma freg_eq: forall (x y: freg), {x=y} + {x<>y}.
+(** Special registers. S0 is treated specially because its first 8 bits are
+    an alias for the predicate registers, and the rest of it cannot be written
+    to. **)
+
+Inductive sreg: Type :=
+  | S1:  sreg | S2:  sreg | S3:  sreg | S4:  sreg | S5:  sreg
+  | S6:  sreg | S7:  sreg | S8:  sreg | S9:  sreg | S10: sreg
+  | S11: sreg | S12: sreg | S13: sreg | S14: sreg | S15: sreg.
+
+Inductive sreg0: Type :=
+  | S0: sreg0 | S: sreg -> sreg0.
+
+Coercion S: sreg >-> sreg0.
+
+Lemma sreg_eq: forall (x y: sreg), {x=y} + {x<>y}.
 Proof. decide equality. Defined.
-  
-(** We model the following registers of the RISC-V architecture. *)
+
+Lemma sreg0_eq: forall (x y: sreg0), {x=y} + {x<>y}.
+Proof. decide equality. apply sreg_eq. Defined.
+
+(** Predicate "registers". P0 is treated specially because it always reads
+    as 1, and is never used as a destination of an instruction. *)
+
+Inductive pbit: Type :=
+  | P1: pbit | P2: pbit | P3: pbit | P4: pbit | P5: pbit
+  | P6: pbit | P7: pbit.
+
+Inductive pbit0: Type :=
+  | P0: pbit0 | P: pbit -> pbit0.
+
+Coercion P: pbit >-> pbit0.
+
+Lemma pbit_eq: forall (x y: pbit), {x=y} + {x<>y}.
+Proof. decide equality. Defined.
+
+Lemma pbit0_eq: forall (x y: pbit0), {x=y} + {x<>y}.
+Proof. decide equality. apply pbit_eq. Defined.
+
+(** We model all registers of the Patmos architecture. *)
 
 Inductive preg: Type :=
-  | IR: ireg -> preg                    (**r integer registers *)
-  | FR: freg -> preg                    (**r double-precision float registers *)
-  | PC: preg.                           (**r program counter *)
+  | IR: ireg -> preg                    (** integer registers *)
+  | SR: sreg -> preg                    (** special registers *)
+  | PR: pbit -> preg                    (** predicate registers *)
+  | PC: preg.                           (** program counter *)
 
 Coercion IR: ireg >-> preg.
-Coercion FR: freg >-> preg.
+Coercion SR: sreg >-> preg.
+Coercion PR: pbit >-> preg.
 
 Lemma preg_eq: forall (x y: preg), {x=y} + {x<>y}.
-Proof. decide equality. apply ireg_eq. apply freg_eq. Defined.
+Proof. decide equality. apply ireg_eq. apply sreg_eq. apply pbit_eq. Defined.
 
 Module PregEq.
   Definition t  := preg.
@@ -91,264 +116,181 @@ End PregEq.
 
 Module Pregmap := EMap(PregEq).
 
-(** Conventional names for stack pointer ([SP]) and return address ([RA]). *)
+(** Conventional names for stack pointer ([SP]) and frame pointer ([FP]). *)
 
-Notation "'SP'" := X2 (only parsing) : asm.
-Notation "'RA'" := X1 (only parsing) : asm.
+Notation "'SP'" := R31 (only parsing) : asm.
+Notation "'FP'" := R30 (only parsing) : asm.
 
-(** Offsets for load and store instructions.  An offset is either an
-  immediate integer or the low part of a symbol. *)
-
-Inductive offset : Type :=
-  | Ofsimm (ofs: ptrofs)
-  | Ofslow (id: ident) (ofs: ptrofs).
-
-(** The RISC-V instruction set is composed of several subsets.  We model
-  the "32I" (32-bit integers), "64I" (64-bit integers),
-  "M" (multiplication and division), 
-  "F" (single-precision floating-point)
-  and "D" (double-precision floating-point) subsets.  
-
-  For 32- and 64-bit integer arithmetic, the RISC-V instruction set comprises
-  generic integer operations such as ADD that operate over the full width
-  of an integer register (either 32 or 64 bit), plus specific instructions
-  such as ADDW that normalize their results to signed 32-bit integers.
-  Other instructions such as AND work equally well over 32- and 64-bit
-  integers, with the convention that 32-bit integers are represented
-  sign-extended in 64-bit registers.
-
-  This clever design is challenging to formalize in the CompCert value
-  model.  As a first step, we follow a more traditional approach,
-  also used in the x86 port, whereas we have two sets of (pseudo-)
-  instructions, one for 32-bit integer arithmetic, with suffix W,
-  the other for 64-bit integer arithmetic, with suffix L.  The mapping
-  to actual instructions is done when printing assembly code, as follows:
-  - In 32-bit mode:
-    ADDW becomes ADD, ADDL is an error, ANDW becomes AND, ANDL is an error.
-  - In 64-bit mode:
-    ADDW becomes ADDW, ADDL becomes ADD, ANDW and ANDL both become AND.
-*)
+(** Conventional names for special registers. *)
+Notation "'SL'"  := S2  (only parsing) : asm.    (** Low part of multiplication result *)
+Notation "'SH'"  := S3  (only parsing) : asm.    (** High part of multiplication result *)
+Notation "'SS'"  := S5  (only parsing) : asm.    (** Spill pointer *)
+Notation "'ST'"  := S6  (only parsing) : asm.    (** Stack pointer *)
+Notation "'SRB'" := S7  (only parsing) : asm.    (** Return base address *)
+Notation "'SRO'" := S8  (only parsing) : asm.    (** Return address offset *)
+Notation "'SXB'" := S9  (only parsing) : asm.    (** Exception return base address *)
+Notation "'SXO'" := S10 (only parsing) : asm.    (** Exceotion return address offset *)
 
 Definition label := positive.
 
-(** A note on immediates: there are various constraints on immediate
-  operands to RISC-V instructions.  We do not attempt to capture these
-  restrictions in the abstract syntax nor in the semantics.  The
-  assembler will emit an error if immediate operands exceed the
-  representable range.  Of course, our RISC-V generator (file
-  [Asmgen]) is careful to respect this range. *)
+Inductive predicate: Type :=
+  | Normal:  pbit0 -> predicate
+  | Inverse: pbit0 -> predicate.
+
+(** The instruction set. Most instructions correspond exactly to instructions 
+    in the actual instruction set of the Patmos processor.
+    See the Patmos Reference Handbook for details on each instruction.
+    However, some instructions are pseudo-instructions; they expand to canned
+    instruction sequences during the printing of the assembly code, and are
+    described below.
+
+    A note on immediates: there are various restrictions on the immediate
+    operands to Patmos instructions. We do not attempt to capture these
+    restrictions in the abstract syntax or in the semantics.
+    The assembler will emit an error if immediate operands exceed the
+    representable range, and our Patmos generator (file [Asmgen]) is
+    careful to respect this range.
+    Note also that some instructions are not available in all formats.
+
+    A note on registers: we use named arguments to distinguish the registers
+    that are read-only or otherwise handled separately. *)
 
 Inductive instruction : Type :=
-  | Pmv     (rd: ireg) (rs: ireg)                    (**r integer move *)
-
-(** 32-bit integer register-immediate instructions *)
-  | Paddiw  (rd: ireg) (rs: ireg0) (imm: int)        (**r add immediate *)
-  | Psltiw  (rd: ireg) (rs: ireg0) (imm: int)        (**r set-less-than immediate *)
-  | Psltiuw (rd: ireg) (rs: ireg0) (imm: int)        (**r set-less-than unsigned immediate *)
-  | Pandiw  (rd: ireg) (rs: ireg0) (imm: int)        (**r and immediate *)
-  | Poriw   (rd: ireg) (rs: ireg0) (imm: int)        (**r or immediate *)
-  | Pxoriw  (rd: ireg) (rs: ireg0) (imm: int)        (**r xor immediate *)
-  | Pslliw  (rd: ireg) (rs: ireg0) (imm: int)        (**r shift-left-logical immediate *)
-  | Psrliw  (rd: ireg) (rs: ireg0) (imm: int)        (**r shift-right-logical immediate *)
-  | Psraiw  (rd: ireg) (rs: ireg0) (imm: int)        (**r shift-right-arith immediate *)
-  | Pluiw   (rd: ireg)             (imm: int)        (**r load upper-immediate *)
-(** 32-bit integer register-register instructions *)
-  | Paddw   (rd: ireg) (rs1 rs2: ireg0)              (**r integer addition *)
-  | Psubw   (rd: ireg) (rs1 rs2: ireg0)              (**r integer subtraction *)
-
-  | Pmulw   (rd: ireg) (rs1 rs2: ireg0)              (**r integer multiply low *)
-  | Pmulhw  (rd: ireg) (rs1 rs2: ireg0)              (**r integer multiply high signed *)
-  | Pmulhuw (rd: ireg) (rs1 rs2: ireg0)              (**r integer multiply high unsigned *)
-  | Pdivw   (rd: ireg) (rs1 rs2: ireg0)              (**r integer division *)
-  | Pdivuw  (rd: ireg) (rs1 rs2: ireg0)              (**r unsigned integer division *)
-  | Premw   (rd: ireg) (rs1 rs2: ireg0)              (**r integer remainder *)
-  | Premuw  (rd: ireg) (rs1 rs2: ireg0)              (**r unsigned integer remainder *)
-  | Psltw   (rd: ireg) (rs1 rs2: ireg0)              (**r set-less-than *)
-  | Psltuw  (rd: ireg) (rs1 rs2: ireg0)              (**r set-less-than unsigned *)
-  | Pseqw   (rd: ireg) (rs1 rs2: ireg0)              (**r [rd <- rs1 == rs2] (pseudo) *)
-  | Psnew   (rd: ireg) (rs1 rs2: ireg0)              (**r [rd <- rs1 != rs2] (pseudo) *)
-  | Pandw   (rd: ireg) (rs1 rs2: ireg0)              (**r bitwise and *)
-  | Porw    (rd: ireg) (rs1 rs2: ireg0)              (**r bitwise or *)
-  | Pxorw   (rd: ireg) (rs1 rs2: ireg0)              (**r bitwise xor *)
-  | Psllw   (rd: ireg) (rs1 rs2: ireg0)              (**r shift-left-logical *)
-  | Psrlw   (rd: ireg) (rs1 rs2: ireg0)              (**r shift-right-logical *)
-  | Psraw   (rd: ireg) (rs1 rs2: ireg0)              (**r shift-right-arith *)
-
-(** 64-bit integer register-immediate instructions *)
-  | Paddil  (rd: ireg) (rs: ireg0) (imm: int64)      (**r add immediate *)
-  | Psltil  (rd: ireg) (rs: ireg0) (imm: int64)      (**r set-less-than immediate *)
-  | Psltiul (rd: ireg) (rs: ireg0) (imm: int64)      (**r set-less-than unsigned immediate *)
-  | Pandil  (rd: ireg) (rs: ireg0) (imm: int64)      (**r and immediate *)
-  | Poril   (rd: ireg) (rs: ireg0) (imm: int64)      (**r or immediate *)
-  | Pxoril  (rd: ireg) (rs: ireg0) (imm: int64)      (**r xor immediate *)
-  | Psllil  (rd: ireg) (rs: ireg0) (imm: int)        (**r shift-left-logical immediate *)
-  | Psrlil  (rd: ireg) (rs: ireg0) (imm: int)        (**r shift-right-logical immediate *)
-  | Psrail  (rd: ireg) (rs: ireg0) (imm: int)        (**r shift-right-arith immediate *)
-  | Pluil   (rd: ireg)             (imm: int64)      (**r load upper-immediate *)
-(** 64-bit integer register-register instructions *)
-  | Paddl   (rd: ireg) (rs1 rs2: ireg0)              (**r integer addition *)
-  | Psubl   (rd: ireg) (rs1 rs2: ireg0)              (**r integer subtraction *)
-
-  | Pmull   (rd: ireg) (rs1 rs2: ireg0)              (**r integer multiply low *)
-  | Pmulhl  (rd: ireg) (rs1 rs2: ireg0)              (**r integer multiply high signed *)
-  | Pmulhul (rd: ireg) (rs1 rs2: ireg0)              (**r integer multiply high unsigned *)
-  | Pdivl   (rd: ireg) (rs1 rs2: ireg0)              (**r integer division *)
-  | Pdivul  (rd: ireg) (rs1 rs2: ireg0)              (**r unsigned integer division *)
-  | Preml   (rd: ireg) (rs1 rs2: ireg0)              (**r integer remainder *)
-  | Premul  (rd: ireg) (rs1 rs2: ireg0)              (**r unsigned integer remainder *)
-  | Psltl   (rd: ireg) (rs1 rs2: ireg0)              (**r set-less-than *)
-  | Psltul  (rd: ireg) (rs1 rs2: ireg0)              (**r set-less-than unsigned *)
-  | Pseql   (rd: ireg) (rs1 rs2: ireg0)              (**r [rd <- rs1 == rs2] (pseudo) *)
-  | Psnel   (rd: ireg) (rs1 rs2: ireg0)              (**r [rd <- rs1 != rs2] (pseudo) *)
-  | Pandl   (rd: ireg) (rs1 rs2: ireg0)              (**r bitwise and *)
-  | Porl    (rd: ireg) (rs1 rs2: ireg0)              (**r bitwise or *)
-  | Pxorl   (rd: ireg) (rs1 rs2: ireg0)              (**r bitwise xor *)
-  | Pslll   (rd: ireg) (rs1 rs2: ireg0)              (**r shift-left-logical *)
-  | Psrll   (rd: ireg) (rs1 rs2: ireg0)              (**r shift-right-logical *)
-  | Psral   (rd: ireg) (rs1 rs2: ireg0)              (**r shift-right-arith *)
-
-  | Pcvtl2w (rd: ireg) (rs: ireg0)                   (**r int64->int32 (pseudo) *)
-  | Pcvtw2l (r: ireg)                                (**r int32 signed -> int64 (pseudo) *)
-
-  (* Unconditional jumps.  Links are always to X1/RA. *)
-  | Pj_l    (l: label)                              (**r jump to label *)
-  | Pj_s    (symb: ident) (sg: signature)           (**r jump to symbol *)
-  | Pj_r    (r: ireg)     (sg: signature)           (**r jump register *)
-  | Pjal_s  (symb: ident) (sg: signature)           (**r jump-and-link symbol *)
-  | Pjal_r  (r: ireg)     (sg: signature)           (**r jump-and-link register *)
-
-  (* Conditional branches, 32-bit comparisons *)
-  | Pbeqw   (rs1 rs2: ireg0) (l: label)             (**r branch-if-equal *)
-  | Pbnew   (rs1 rs2: ireg0) (l: label)             (**r branch-if-not-equal signed *)
-  | Pbltw   (rs1 rs2: ireg0) (l: label)             (**r branch-if-less signed *)
-  | Pbltuw  (rs1 rs2: ireg0) (l: label)             (**r branch-if-less unsigned *)
-  | Pbgew   (rs1 rs2: ireg0) (l: label)             (**r branch-if-greater-or-equal signed *)
-  | Pbgeuw  (rs1 rs2: ireg0) (l: label)             (**r branch-if-greater-or-equal unsigned *)
-
-  (* Conditional branches, 64-bit comparisons *)
-  | Pbeql   (rs1 rs2: ireg0) (l: label)             (**r branch-if-equal *)
-  | Pbnel   (rs1 rs2: ireg0) (l: label)             (**r branch-if-not-equal signed *)
-  | Pbltl   (rs1 rs2: ireg0) (l: label)             (**r branch-if-less signed *)
-  | Pbltul  (rs1 rs2: ireg0) (l: label)             (**r branch-if-less unsigned *)
-  | Pbgel   (rs1 rs2: ireg0) (l: label)             (**r branch-if-greater-or-equal signed *)
-  | Pbgeul  (rs1 rs2: ireg0) (l: label)             (**r branch-if-greater-or-equal unsigned *)
-
-  (* Loads and stores *)
-  | Plb     (rd: ireg) (ra: ireg) (ofs: offset)     (**r load signed int8 *)
-  | Plbu    (rd: ireg) (ra: ireg) (ofs: offset)     (**r load unsigned int8 *)
-  | Plh     (rd: ireg) (ra: ireg) (ofs: offset)     (**r load signed int16 *)
-  | Plhu    (rd: ireg) (ra: ireg) (ofs: offset)     (**r load unsigned int16 *)
-  | Plw     (rd: ireg) (ra: ireg) (ofs: offset)     (**r load int32 *)
-  | Plw_a   (rd: ireg) (ra: ireg) (ofs: offset)     (**r load any32 *)
-  | Pld     (rd: ireg) (ra: ireg) (ofs: offset)     (**r load int64 *)
-  | Pld_a   (rd: ireg) (ra: ireg) (ofs: offset)     (**r load any64 *)
-
-  | Psb     (rs: ireg) (ra: ireg) (ofs: offset)     (**r store int8 *)
-  | Psh     (rs: ireg) (ra: ireg) (ofs: offset)     (**r store int16 *)
-  | Psw     (rs: ireg) (ra: ireg) (ofs: offset)     (**r store int32 *)
-  | Psw_a   (rs: ireg) (ra: ireg) (ofs: offset)     (**r store any32 *)
-  | Psd     (rs: ireg) (ra: ireg) (ofs: offset)     (**r store int64 *)
-  | Psd_a   (rs: ireg) (ra: ireg) (ofs: offset)     (**r store any64 *)
-
-  (* Synchronization *)
-  | Pfence                                          (**r fence *)
-
-  (* floating point register move *)
-  | Pfmv     (rd: freg) (rs: freg)                  (**r move *)
-  | Pfmvxs   (rd: ireg) (rs: freg)                  (**r move FP single to integer register *)
-  | Pfmvxd   (rd: ireg) (rs: freg)                  (**r move FP double to integer register *)
-
-  (* 32-bit (single-precision) floating point *)
-  | Pfls     (rd: freg) (ra: ireg) (ofs: offset)    (**r load float *)
-  | Pfss     (rs: freg) (ra: ireg) (ofs: offset)    (**r store float *)
-
-  | Pfnegs   (rd: freg) (rs: freg)                  (**r negation *)
-  | Pfabss   (rd: freg) (rs: freg)                  (**r absolute value *)
-
-  | Pfadds   (rd: freg) (rs1 rs2: freg)             (**r addition *)
-  | Pfsubs   (rd: freg) (rs1 rs2: freg)             (**r subtraction *)
-  | Pfmuls   (rd: freg) (rs1 rs2: freg)             (**r multiplication *)
-  | Pfdivs   (rd: freg) (rs1 rs2: freg)             (**r division *)
-  | Pfmins   (rd: freg) (rs1 rs2: freg)             (**r minimum *)
-  | Pfmaxs   (rd: freg) (rs1 rs2: freg)             (**r maximum *)
-
-  | Pfeqs    (rd: ireg) (rs1 rs2: freg)             (**r compare equal *)
-  | Pflts    (rd: ireg) (rs1 rs2: freg)             (**r compare less-than *)
-  | Pfles    (rd: ireg) (rs1 rs2: freg)             (**r compare less-than/equal *)
-
-  | Pfsqrts  (rd: freg) (rs: freg)                  (**r square-root *)
-
-  | Pfmadds  (rd: freg) (rs1 rs2 rs3: freg)         (**r fused multiply-add *)
-  | Pfmsubs  (rd: freg) (rs1 rs2 rs3: freg)         (**r fused multiply-sub *)
-  | Pfnmadds (rd: freg) (rs1 rs2 rs3: freg)         (**r fused negated multiply-add *)
-  | Pfnmsubs (rd: freg) (rs1 rs2 rs3: freg)         (**r fused negated multiply-sub *)
-
-  | Pfcvtws  (rd: ireg) (rs: freg)                  (**r float32 -> int32 conversion *)
-  | Pfcvtwus (rd: ireg) (rs: freg)                  (**r float32 -> unsigned int32 conversion *)
-  | Pfcvtsw  (rd: freg) (rs: ireg0)                 (**r int32 -> float32 conversion *)
-  | Pfcvtswu (rd: freg) (rs: ireg0)                 (**r unsigned int32 -> float32 conversion *)
-
-  | Pfcvtls  (rd: ireg) (rs: freg)                  (**r float32 -> int64 conversion *)
-  | Pfcvtlus (rd: ireg) (rs: freg)                  (**r float32 -> unsigned int64 conversion *)
-  | Pfcvtsl  (rd: freg) (rs: ireg0)                 (**r int64 -> float32 conversion *)
-  | Pfcvtslu (rd: freg) (rs: ireg0)                 (**r unsigned int 64-> float32 conversion *)
-
-  (* 64-bit (double-precision) floating point *)
-  | Pfld     (rd: freg) (ra: ireg) (ofs: offset)    (**r load 64-bit float *)
-  | Pfld_a   (rd: freg) (ra: ireg) (ofs: offset)    (**r load any64 *)
-  | Pfsd     (rd: freg) (ra: ireg) (ofs: offset)    (**r store 64-bit float *)
-  | Pfsd_a   (rd: freg) (ra: ireg) (ofs: offset)    (**r store any64 *)
-
-  | Pfnegd   (rd: freg) (rs: freg)                  (**r negation *)
-  | Pfabsd   (rd: freg) (rs: freg)                  (**r absolute value *)
-
-  | Pfaddd   (rd: freg) (rs1 rs2: freg)             (**r addition *)
-  | Pfsubd   (rd: freg) (rs1 rs2: freg)             (**r subtraction *)
-  | Pfmuld   (rd: freg) (rs1 rs2: freg)             (**r multiplication *)
-  | Pfdivd   (rd: freg) (rs1 rs2: freg)             (**r division *)
-  | Pfmind   (rd: freg) (rs1 rs2: freg)             (**r minimum *)
-  | Pfmaxd   (rd: freg) (rs1 rs2: freg)             (**r maximum *)
-
-  | Pfeqd    (rd: ireg) (rs1 rs2: freg)             (**r compare equal *)
-  | Pfltd    (rd: ireg) (rs1 rs2: freg)             (**r compare less-than *)
-  | Pfled    (rd: ireg) (rs1 rs2: freg)             (**r compare less-than/equal *)
-
-  | Pfsqrtd  (rd: freg) (rs: freg)                  (**r square-root *)
-
-  | Pfmaddd  (rd: freg) (rs1 rs2 rs3: freg)         (**r fused multiply-add *)
-  | Pfmsubd  (rd: freg) (rs1 rs2 rs3: freg)         (**r fused multiply-sub *)
-  | Pfnmaddd (rd: freg) (rs1 rs2 rs3: freg)         (**r fused negated multiply-add *)
-  | Pfnmsubd (rd: freg) (rs1 rs2 rs3: freg)         (**r fused negated multiply-sub *)
-
-  | Pfcvtwd  (rd: ireg) (rs: freg)                  (**r float -> int32 conversion *)
-  | Pfcvtwud (rd: ireg) (rs: freg)                  (**r float -> unsigned int32 conversion *)
-  | Pfcvtdw  (rd: freg) (rs: ireg0)                 (**r int32 -> float conversion *)
-  | Pfcvtdwu (rd: freg) (rs: ireg0)                 (**r unsigned int32 -> float conversion *)
-
-  | Pfcvtld  (rd: ireg) (rs: freg)                  (**r float -> int64 conversion *)
-  | Pfcvtlud (rd: ireg) (rs: freg)                  (**r float -> unsigned int64 conversion *)
-  | Pfcvtdl  (rd: freg) (rs: ireg0)                 (**r int64 -> float conversion *)
-  | Pfcvtdlu (rd: freg) (rs: ireg0)                 (**r unsigned int64 -> float conversion *)
-
-  | Pfcvtds  (rd: freg) (rs: freg)                  (**r float32 -> float   *)
-  | Pfcvtsd  (rd: freg) (rs: freg)                  (**r float   -> float32 *)
-
-  (* Pseudo-instructions *)
-  | Pallocframe (sz: Z) (pos: ptrofs)               (**r allocate new stack frame *)
-  | Pfreeframe  (sz: Z) (pos: ptrofs)               (**r deallocate stack frame and restore previous frame *)
-  | Plabel  (lbl: label)                            (**r define a code label *)
-  | Ploadsymbol (rd: ireg) (id: ident) (ofs: ptrofs) (**r load the address of a symbol *)
-  | Ploadsymbol_high (rd: ireg) (id: ident) (ofs: ptrofs) (**r load the high part of the address of a symbol *)
-  | Ploadli (rd: ireg) (i: int64)                   (**r load an immediate int64 *)
-  | Ploadfi (rd: freg) (f: float)                   (**r load an immediate float *)
-  | Ploadsi (rd: freg) (f: float32)                 (**r load an immediate single *)
-  | Pbtbl   (r: ireg)  (tbl: list label)            (**r N-way branch through a jump table *)
-  | Pbuiltin: external_function -> list (builtin_arg preg)
-              -> builtin_res preg -> instruction    (**r built-in function (pseudo) *)
-  | Pnop : instruction.                             (**r nop instruction *)
-
+  (** 32-bit integer register-register arithmetic *)
+  | Padd     (p: predicate) (rd: ireg) (rs1 rs2: ireg0)        (** integer addition *)
+  | Psub     (p: predicate) (rd: ireg) (rs1 rs2: ireg0)        (** integer subtraction *)
+  | Pxor     (p: predicate) (rd: ireg) (rs1 rs2: ireg0)        (** logical exclusive or *)
+  | Psl      (p: predicate) (rd: ireg) (rs1 rs2: ireg0)        (** shift left *)
+  | Psr      (p: predicate) (rd: ireg) (rs1 rs2: ireg0)        (** shift right *)
+  | Psra     (p: predicate) (rd: ireg) (rs1 rs2: ireg0)        (** shift right arithmetic *)
+  | Por      (p: predicate) (rd: ireg) (rs1 rs2: ireg0)        (** logical or *)
+  | Pand     (p: predicate) (rd: ireg) (rs1 rs2: ireg0)        (** logical and *)
+  | Pnor     (p: predicate) (rd: ireg) (rs1 rs2: ireg0)        (** logical not or *)
+  | Pshadd   (p: predicate) (rd: ireg) (rs1 rs2: ireg0)        (** shift and add *)
+  | Pshadd2  (p: predicate) (rd: ireg) (rs1 rs2: ireg0)        (** shift twice and add *)
+  (** 12-bit integer register-immediate arithmetic *)          
+  | Paddi    (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** integer addition *)
+  | Psubi    (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** integer subtraction *)
+  | Pxori    (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** logical exclusive or *)
+  | Psli     (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** shift left *)
+  | Psri     (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** shift right *)
+  | Psrai    (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** shift right arithmetic *)
+  | Pori     (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** logical or *)
+  | Pandi    (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** logical and *)
+  (** 32-bit integer register-immediate arithmetic *)
+  | Paddl    (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** integer addition *)
+  | Psubl    (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** integer subtraction *)
+  | Pxorl    (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** logical exclusive or *)
+  | Psll     (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** shift left *)
+  | Psrl     (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** shift right *)
+  | Psral    (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** shift right arithmetic *)
+  | Porl     (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** logical or *)
+  | Pandl    (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** logical and *)
+  | Pnorl    (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** logical not or *)
+  | Pshaddl  (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** shift and add *)
+  | Pshadd2l (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (** shift twice and add *)
+  (** Multiplication *)
+  | Pmul     (p: predicate) (rs1 rs2: ireg0)                   (** multiply *)
+  | Pmulu    (p: predicate) (rs1 rs2: ireg0)                   (** unsigned multiply *)
+  (** 32-bit integer register-register comparison *)
+  | Pcmpeq   (p: predicate) (pd: pbit) (rs1 rs2: ireg0)        (** equal *)
+  | Pcmpneq  (p: predicate) (pd: pbit) (rs1 rs2: ireg0)        (** not equal *)
+  | Pcmplt   (p: predicate) (pd: pbit) (rs1 rs2: ireg0)        (** less than *)
+  | Pcmple   (p: predicate) (pd: pbit) (rs1 rs2: ireg0)        (** less than or equal *)
+  | Pcmpult  (p: predicate) (pd: pbit) (rs1 rs2: ireg0)        (** unsigned less than *)
+  | Pcmpule  (p: predicate) (pd: pbit) (rs1 rs2: ireg0)        (** unsigned less than or equal *)
+  | Pbtest   (p: predicate) (pd: pbit) (rs1 rs2: ireg0)        (** test bit *)
+  (** 5-bit integer register-immediate comparison *)
+  | Pcmpeqi  (p: predicate) (pd: pbit) (rs1: ireg0) (imm: int) (** equal *)
+  | Pcmpneqi (p: predicate) (pd: pbit) (rs1: ireg0) (imm: int) (** not equal *)
+  | Pcmplti  (p: predicate) (pd: pbit) (rs1: ireg0) (imm: int) (** less than *)
+  | Pcmplei  (p: predicate) (pd: pbit) (rs1: ireg0) (imm: int) (** less than or equal *)
+  | Pcmpulti (p: predicate) (pd: pbit) (rs1: ireg0) (imm: int) (** unsigned less than *)
+  | Pcmpulei (p: predicate) (pd: pbit) (rs1: ireg0) (imm: int) (** unsigned less than or equal *)
+  | Pbtesti  (p: predicate) (pd: pbit) (rs1: ireg0) (imm: int) (** test bit *)
+  (** Predicate arithmetic *)
+  | Ppor     (p: predicate) (pd: pbit) (ps1 ps2: predicate)    (** predicate or *)
+  | Ppand    (p: predicate) (pd: pbit) (ps1 ps2: predicate)    (** predicate and *)
+  | Ppxor    (p: predicate) (pd: pbit) (ps1 ps2: predicate)    (** predicate exclusive or *)
+  (** Bitcopy *)
+  | Pbcopy   (p: predicate) (rd: ireg) (rs1: ireg0) (imm: int) (ps: predicate) (** bitcopy *)
+  (** Special moves *)
+  | Pmts     (p: predicate) (rs1: ireg0) (sd: sreg0)           (** move to special *)
+  | Pmfs     (p: predicate) (rd: ireg) (ss: sreg0)             (** move from special *)
+  (** Load typed *)
+  | Plws     (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load word from stack cache *)
+  | Plwl     (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load word from local memory *)
+  | Plwc     (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load word from data cache *)
+  | Plwm     (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load word from global memory *)
+  | Plhs     (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load half-word from stack cache *)
+  | Plhl     (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load half-word from local memory *)
+  | Plhc     (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load half-word from data cache *)
+  | Plhm     (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load half-word from global memory *)
+  | Plbs     (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load byte from stack cache *)
+  | Plbl     (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load byte from local memory *)
+  | Plbc     (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load byte from data cache *)
+  | Plbm     (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load byte from global memory *)
+  | Plhus    (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load unsigned half-word from stack cache *)
+  | Plhul    (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load unsigned half-word from local memory *)
+  | Plhuc    (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load unsigned half-word from data cache *)
+  | Plhum    (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load unsigned half-word from global memory *)
+  | Plbus    (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load unsigned byte from stack cache *)
+  | Plbul    (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load unsigned byte from local memory *)
+  | Plbuc    (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load unsigned byte from data cache *)
+  | Plbum    (p: predicate) (rd: ireg) (ra: ireg0) (imm: int) (** load unsigned byte from global memory *)
+  (** Store typed *)
+  | Psws     (p: predicate) (ra rs: ireg0) (imm: int)         (** store word to stack cache *)
+  | Pswl     (p: predicate) (ra rs: ireg0) (imm: int)         (** store word to local memory *)
+  | Pswc     (p: predicate) (ra rs: ireg0) (imm: int)         (** store word to data cache *)
+  | Pswm     (p: predicate) (ra rs: ireg0) (imm: int)         (** store word to global memory *)
+  | Pshs     (p: predicate) (ra rs: ireg0) (imm: int)         (** store half-word to stack cache *)
+  | Pshl     (p: predicate) (ra rs: ireg0) (imm: int)         (** store half-word to local memory *)
+  | Pshc     (p: predicate) (ra rs: ireg0) (imm: int)         (** store half-word to data cache *)
+  | Pshm     (p: predicate) (ra rs: ireg0) (imm: int)         (** store half-word to global memory *)
+  | Psbs     (p: predicate) (ra rs: ireg0) (imm: int)         (** store byte to stack cache *)
+  | Psbl     (p: predicate) (ra rs: ireg0) (imm: int)         (** store byte to local memory *)
+  | Psbc     (p: predicate) (ra rs: ireg0) (imm: int)         (** store byte to data cache *)
+  | Psbm     (p: predicate) (ra rs: ireg0) (imm: int)         (** store byte to global memory *)
+  (** Register stack control *)
+  | Psens    (p: predicate) (rs: ireg0)                       (** ensure usage of stack cache *)
+  | Psspill  (p: predicate) (rs: ireg0)                       (** spill tail of stack cache *)
+  (** Immediate stack control *)
+  | Psres    (p: predicate) (imm: int)                        (** reserve space in stack cache *)
+  | Psensi   (p: predicate) (imm: int)                        (** ensure usage of stack cache *)
+  | Psfree   (p: predicate) (imm: int)                        (** free space in stack cache *)
+  | Psspilli (p: predicate) (imm: int)                        (** spill tail of stack cache *)
+  (** Immediate control-flow functions *)
+  | Pcallnd  (p: predicate) (imm: int)                        (** non-delayed function call *)
+  | Pcall    (p: predicate) (imm: int)                        (** function call *)
+  | Pbrnd    (p: predicate) (imm: int)                        (** non-delayed local branch *)
+  | Pbr      (p: predicate) (imm: int)                        (** local branch *)
+  | Pbrcfnd  (p: predicate) (imm: int)                        (** non-delayed branch *)
+  | Pbrcf    (p: predicate) (imm: int)                        (** branch *)
+  | Ptrap    (p: predicate) (imm: int)                        (** system call *)
+  (** Register control-flow functions *)                                              
+  | Pcallndr (p: predicate) (ra: ireg0)                       (** non-delayed function call *)
+  | Pcallr   (p: predicate) (ra: ireg0)                       (** function call *)
+  | Pbrndr   (p: predicate) (ra: ireg0)                       (** non-delayed local branch *)
+  | Pbrr     (p: predicate) (ra: ireg0)                       (** local branch *)
+  | Pbrcfndr (p: predicate) (ra ro: ireg0)                    (** non-delayed branch *)
+  | Pbrcfr   (p: predicate) (ra ro: ireg0)                    (** branch *)
+  (** Return functions *)
+  | Pretnd   (p: predicate)                                   (** non-delayed return *)
+  | Pret     (p: predicate)                                   (** return *)
+  | Pxretnd  (p: predicate)                                   (** non-delayed return from exception *)
+  | Pxret    (p: predicate)                                   (** return from exception *)
+  (** Pseudo-instructions *)
+  | Pallocframe (sz: Z) (pos: ptrofs)                         (** allocate a new stack frame *)
+  | Pfreeframe  (sz: Z) (pos: ptrofs)  (** deallocate stack frame and restore previous frame *)
+  | Plabel   (lbl: label)                                     (** define a code label *)
+  | Ploadsymbol (rd: ireg) (id: ident) (ofs: ptrofs)          (** load the address of a symbol *)
+  | Ploadsymbol_high (rd: ireg) (id: ident) (ofs: ptrofs) (** load the high part of the address of a symbol *)
+  | Pbtbl    (r: ireg) (tbl: list label)                      (** N-way branch through a jump table *)
+  | Pbuiltin: external_function -> list (builtin_arg preg) -> builtin_res preg -> instruction (** build-in function *)
+  | Pnop: instruction.
 
 (** The pseudo-instructions are the following:
+  NOTE/TODO: THIS IS COPIED VERBATIM FROM RISC-V
 
 - [Plabel]: define a code label at the current program point.
 
@@ -433,27 +375,28 @@ Definition program := AST.program fundef unit.
 (** The semantics operates over a single mapping from registers
   (type [preg]) to values.  We maintain
   the convention that integer registers are mapped to values of
-  type [Tint] or [Tlong] (in 64 bit mode),
-  and float registers to values of type [Tsingle] or [Tfloat]. *)
+  type [Tint] and boolean registers to either [Vzero] or [Vone]. *)
 
 Definition regset := Pregmap.t val.
 Definition genv := Genv.t fundef unit.
 
+(** We maintain that R0 always equals 0 and P0 always equals 1. *)
+
 Definition get0w (rs: regset) (r: ireg0) : val :=
   match r with
-  | X0 => Vint Int.zero
-  | X r => rs r
+  | R0 => Vint Int.zero
+  | R r => rs r
   end.
 
-Definition get0l (rs: regset) (r: ireg0) : val :=
-  match r with
-  | X0 => Vlong Int64.zero
-  | X r => rs r
+Definition get0p (rs: regset) (p: pbit0) : val :=
+  match p with
+  | P0 => Vone
+  | P p => rs p
   end.
 
 Notation "a # b" := (a b) (at level 1, only parsing) : asm.
 Notation "a ## b" := (get0w a b) (at level 1) : asm.
-Notation "a ### b" := (get0l a b) (at level 1) : asm.
+Notation "a ### b" := (get0p a b) (at level 1) : asm.
 Notation "a # b <- c" := (Pregmap.set b c a) (at level 1, b at next level) : asm.
 
 Open Scope asm.
@@ -569,6 +512,7 @@ Definition goto_label (f: function) (lbl: label) (rs: regset) (m: mem) :=
   end.
 
 (** Auxiliaries for memory accesses *)
+(** TODO: Consider rewriting this based on the PPC code *)
 
 Definition eval_offset (ofs: offset) : ptrofs :=
   match ofs with
