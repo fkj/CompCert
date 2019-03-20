@@ -598,7 +598,7 @@ let get_nontype_attrs env ty =
     | Attr_type -> false
     | Attr_function -> not (is_function_type env ty)
     | _ -> true in
-  let nta = List.filter to_be_removed (attributes_of_type env ty) in
+  let nta = List.filter to_be_removed (attributes_of_type_no_expand ty) in
   (remove_attributes_type env nta ty, nta)
 
 (* Elaboration of a type specifier.  Returns 6-tuple:
@@ -656,15 +656,31 @@ let rec elab_specifier ?(only = false) loc env specifier =
     restrict_check ty;
     (!sto, !inline, !noreturn ,!typedef, add_attributes_type !attr ty, env) in
 
-  (* As done in CIL, partition !attr into struct-related attributes,
+  (* Partition !attr into name- and struct-related attributes,
      which are returned, and other attributes, which are left in !attr.
-     The returned struct-related attributes are applied to the
+     The returned name-or-struct-related attributes are applied to the
      struct/union/enum being defined.
-     The leftover non-struct-related attributes will be applied
-     to the variable being defined. *)
-  let get_struct_attrs () =
+     The leftover attributes (e.g. object attributes) will be applied
+     to the variable being defined.
+     If [optmembers] is [None], name-related attributes are not returned
+     but left in !attr.  This corresponds to two use cases:
+     - A use of an already-defined struct/union/enum.  In this case
+       the name-related attributes should go to the name being declared.
+       Sending them to the struct/union/enum would cause them to be ignored,
+       with a warning.  The struct-related attributes go to the 
+       struct/union/enum, are ignored, and cause a warning.
+     - An incomplete declaration of a struct/union.  In this case
+       the name- and struct-related attributes are just ignored,
+       like GCC does.
+  *)
+  let get_definition_attrs optmembers =
     let (ta, nta) =
-      List.partition (fun a -> class_of_attribute a = Attr_struct) !attr in
+      List.partition
+        (fun a -> match class_of_attribute a with
+                  | Attr_struct -> true
+                  | Attr_name -> optmembers <> None
+                  | _ -> false)
+        !attr in
     attr := nta;
     ta in
 
@@ -723,7 +739,8 @@ let rec elab_specifier ?(only = false) loc env specifier =
 
     | [Cabs.Tstruct_union(STRUCT, id, optmembers, a)] ->
         let a' =
-          add_attributes (get_struct_attrs()) (elab_attributes env a) in
+          add_attributes (get_definition_attrs optmembers)
+                         (elab_attributes env a) in
         let (id', env') =
           elab_struct_or_union only Struct loc id optmembers a' env in
         let ty =  TStruct(id', !attr) in
@@ -732,7 +749,8 @@ let rec elab_specifier ?(only = false) loc env specifier =
 
     | [Cabs.Tstruct_union(UNION, id, optmembers, a)] ->
         let a' =
-          add_attributes (get_struct_attrs()) (elab_attributes env a) in
+          add_attributes (get_definition_attrs optmembers)
+                         (elab_attributes env a) in
         let (id', env') =
           elab_struct_or_union only Union loc id optmembers a' env in
         let ty =  TUnion(id', !attr) in
@@ -741,7 +759,8 @@ let rec elab_specifier ?(only = false) loc env specifier =
 
     | [Cabs.Tenum(id, optmembers, a)] ->
         let a' =
-          add_attributes (get_struct_attrs()) (elab_attributes env a) in
+          add_attributes (get_definition_attrs optmembers)
+                         (elab_attributes env a) in
         let (id', env') =
           elab_enum only loc id optmembers a' env in
         let ty = TEnum (id', !attr) in
@@ -2362,6 +2381,13 @@ let enter_typedefs loc env sto dl =
       error loc "initializer in typedef";
     if has_std_alignas env ty then
       error loc "alignment specified for typedef '%s'" s;
+    List.iter
+      (fun a -> match class_of_attribute a with
+                | Attr_object | Attr_struct ->
+                    error loc "attribute '%s' not allowed in 'typedef'"
+                              (name_of_attribute a)
+                | _ -> ())
+      (attributes_of_type_no_expand ty);
     match previous_def Env.lookup_typedef env s with
     | Some (s',ty') when Env.in_current_scope env s' ->
         if equal_types env ty ty' then begin
