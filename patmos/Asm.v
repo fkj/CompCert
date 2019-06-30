@@ -28,27 +28,27 @@ Require Import Events.
 Require Import Globalenvs.
 Require Import Smallstep.
 Require Import Locations.
-Require Stacklayout.
+Require Import Stacklayout.
 Require Import Conventions.
 
 (** * Abstract syntax *)
 
-(** Integer registers.  R0 is treated specially because it always reads 
+(** Integer registers.  GPR0 is treated specially because it always reads 
   as zero and is never used as a destination of an instruction. *)
 
 Inductive ireg: Type :=
-  | R1:  ireg | R2:  ireg | R3:  ireg | R4:  ireg | R5:  ireg
-  | R6:  ireg | R7:  ireg | R8:  ireg | R9:  ireg | R10: ireg
-  | R11: ireg | R12: ireg | R13: ireg | R14: ireg | R15: ireg
-  | R16: ireg | R17: ireg | R18: ireg | R19: ireg | R20: ireg
-  | R21: ireg | R22: ireg | R23: ireg | R24: ireg | R25: ireg
-  | R26: ireg | R27: ireg | R28: ireg | R29: ireg | R30: ireg
-  | R31: ireg.
+  | GPR1:  ireg | GPR2:  ireg | GPR3:  ireg | GPR4:  ireg | GPR5:  ireg
+  | GPR6:  ireg | GPR7:  ireg | GPR8:  ireg | GPR9:  ireg | GPR10: ireg
+  | GPR11: ireg | GPR12: ireg | GPR13: ireg | GPR14: ireg | GPR15: ireg
+  | GPR16: ireg | GPR17: ireg | GPR18: ireg | GPR19: ireg | GPR20: ireg
+  | GPR21: ireg | GPR22: ireg | GPR23: ireg | GPR24: ireg | GPR25: ireg
+  | GPR26: ireg | GPR27: ireg | GPR28: ireg | GPR29: ireg | GPR30: ireg
+  | GPR31: ireg.
 
 Inductive ireg0: Type :=
-  | R0: ireg0 | R: ireg -> ireg0.
+  | GPR0: ireg0 | GPR: ireg -> ireg0.
 
-Coercion R: ireg >-> ireg0.
+Coercion GPR: ireg >-> ireg0.
 
 Lemma ireg_eq: forall (x y: ireg), {x=y} + {x<>y}.
 Proof. decide equality. Defined.
@@ -118,8 +118,8 @@ Module Pregmap := EMap(PregEq).
 
 (** Conventional names for stack pointer ([SP]) and frame pointer ([FP]). *)
 
-Notation "'SP'" := R31 (only parsing) : asm.
-Notation "'FP'" := R30 (only parsing) : asm.
+Notation "'SP'" := GPR31 (only parsing) : asm.
+Notation "'FP'" := GPR30 (only parsing) : asm.
 
 (** Conventional names for special registers. *)
 Notation "'SL'"  := S2  (only parsing) : asm.    (** Low part of multiplication result *)
@@ -260,13 +260,13 @@ Inductive instruction : Type :=
   | Psfree   (p: predicate) (imm: int)                        (** free space in stack cache *)
   | Psspilli (p: predicate) (imm: int)                        (** spill tail of stack cache *)
   (** Immediate control-flow functions *)
-  | Pcallnd  (p: predicate) (imm: int)                        (** non-delayed function call *)
-  | Pcall    (p: predicate) (imm: int)                        (** function call *)
+  | Pcallnd  (p: predicate) (l: label)                        (** non-delayed function call *)
+  | Pcall    (p: predicate) (l: label)                        (** function call *)
   | Pbrnd    (p: predicate) (imm: int)                        (** non-delayed local branch *)
   | Pbr      (p: predicate) (imm: int)                        (** local branch *)
-  | Pbrcfnd  (p: predicate) (imm: int)                        (** non-delayed branch *)
-  | Pbrcf    (p: predicate) (imm: int)                        (** branch *)
-  | Ptrap    (p: predicate) (imm: int)                        (** system call *)
+  | Pbrcfnd  (p: predicate) (l: label)                        (** non-delayed branch *)
+  | Pbrcf    (p: predicate) (l: label)                        (** branch *)
+  | Ptrap    (p: predicate) (index: int)                      (** system call *)
   (** Register control-flow functions *)                                              
   | Pcallndr (p: predicate) (ra: ireg0)                       (** non-delayed function call *)
   | Pcallr   (p: predicate) (ra: ireg0)                       (** function call *)
@@ -286,7 +286,7 @@ Inductive instruction : Type :=
   | Ploadsymbol (rd: ireg) (id: ident) (ofs: ptrofs)          (** load the address of a symbol *)
   | Ploadsymbol_high (rd: ireg) (id: ident) (ofs: ptrofs) (** load the high part of the address of a symbol *)
   | Pbtbl    (r: ireg) (tbl: list label)                      (** N-way branch through a jump table *)
-  | Pbuiltin: external_function -> list (builtin_arg preg) -> builtin_res preg -> instruction (** build-in function *)
+  | Pbuiltin: external_function -> list (builtin_arg preg) -> builtin_res preg -> instruction (** built-in function *)
   | Pnop: instruction.
 
 (** The pseudo-instructions are the following:
@@ -384,8 +384,8 @@ Definition genv := Genv.t fundef unit.
 
 Definition getR0 (rs: regset) (r: ireg0) : val :=
   match r with
-  | R0 => Vint Int.zero
-  | R r => rs r
+  | GPR0 => Vint Int.zero
+  | GPR r => rs r
   end.
 
 Definition getP0 (rs: regset) (p: pbit0) : val :=
@@ -418,7 +418,6 @@ Definition set_pair (p: rpair preg) (v: val) (rs: regset) : regset :=
   end.
 
 (** Assigning multiple registers *)
-
 Fixpoint set_regs (rl: list preg) (vl: list val) (rs: regset) : regset :=
   match rl, vl with
   | r1 :: rl', v1 :: vl' => set_regs rl' vl' (rs#r1 <- v1)
@@ -512,30 +511,24 @@ Definition goto_label (f: function) (lbl: label) (rs: regset) (m: mem) :=
   end.
 
 (** Auxiliaries for memory accesses *)
-(** TODO: Consider rewriting this based on the PPC code *)
 
-(*
-Definition eval_offset (ofs: offset) : ptrofs :=
-  match ofs with
-  | Ofsimm n => n
-  | Ofslow id delta => low_half ge id delta
-  end.
-
+(** The displacement [dis] is a 7-bit unsigned value, but we don't model that here.
+    The alignment should be 2 for words, 1 for half-words, and 0 for bytes. *)
 Definition exec_load (chunk: memory_chunk) (rs: regset) (m: mem)
-                     (d: preg) (a: ireg) (ofs: offset) :=
-  match Mem.loadv chunk m (Val.offset_ptr (rs a) (eval_offset ofs)) with
+                     (rd: ireg) (ra: ireg0) (dis: int) (alignment: int) :=
+  match Mem.loadv chunk m (Val.add (rs##ra) (Val.shl (Vint dis) (Vint alignment))) with
   | None => Stuck
-  | Some v => Next (nextinstr (rs#d <- v)) m
+  | Some v => Next (nextinstr (rs#rd <- v)) m
   end.
 
+(** The displacement [dis] is a 7-bit unsigned value, but we don't model that here.
+    The alignment should be 2 for words, 1 for half-words, and 0 for bytes. *)
 Definition exec_store (chunk: memory_chunk) (rs: regset) (m: mem)
-                      (s: preg) (a: ireg) (ofs: offset) :=
-  match Mem.storev chunk m (Val.offset_ptr (rs a) (eval_offset ofs)) (rs s) with
+                      (rv: ireg0) (ra: ireg0) (dis: int) (alignment: int) :=
+  match Mem.storev chunk m (Val.add (rs##ra) (Val.shl (Vint dis) (Vint alignment))) (rs##rv) with
   | None => Stuck
   | Some m' => Next (nextinstr rs) m'
   end.
-
-*)
 
 (** Evaluating a branch *)
 
@@ -545,18 +538,6 @@ Definition eval_branch (f: function) (l: label) (rs: regset) (m: mem) (res: opti
     | Some false => Next (nextinstr rs) m
     | None => Stuck
   end.
-
-(** Execution of a single instruction [i] in initial state [rs] and
-    [m].  Return updated state.  For instructions that correspond to
-    actual RISC-V instructions, the cases are straightforward
-    transliterations of the informal descriptions given in the RISC-V
-    user-mode specification.  For pseudo-instructions, refer to the
-    informal descriptions given above.
-
-    Note that we set to [Vundef] the registers used as temporaries by
-    the expansions of the pseudo-instructions, so that the RISC-V code
-    we generate cannot use those registers to hold values that must
-    survive the execution of the pseudo-instruction. *)
 
 (** Removing everything but the last 5 bits from a value for shift instructions *)
 Definition trim_shift (v: val) : val := Val.shru (Val.shl v (Vint (Int.repr 27))) (Vint (Int.repr 27)).
@@ -576,10 +557,45 @@ Definition eval_pred (p: predicate) (rs: regset): val :=
   | Inverse pb => Val.notint rs###pb
   end.
 
+(** Accessing single bits of a value *)
+Definition get_nth_bit (v: val) (n: Z): val :=
+  Val.shru (Val.shl v (Vint (Int.repr (31 - n)))) (Vint (Int.repr 31)).
+
+Fixpoint assemble_bits (bits: list val) (start: Z): val :=
+  match bits with
+  | nil => Vzero
+  | b :: rest => Val.add (Val.shl b (Vint (Int.repr start))) (assemble_bits rest (start - 1))
+  end.
+
+(** Determining whether a predicate holds *)
+Definition det_pred (p: predicate) (rs: regset): bool :=
+  match p with
+  | Normal pbit => match rs###pbit with
+                   | Vone => true
+                   end
+  | Inverse pbit => match rs###pbit with
+                    | Vone => false
+                    end
+  end.
+
+(** Execution of a single instruction [i] in initial state [rs] and
+    [m].  Return updated state.  For instructions that correspond to
+    actual Patmos instructions, the cases are straightforward
+    transliterations of the informal descriptions given in the Patmos
+    reference handbook.  For pseudo-instructions, refer to the
+    informal descriptions given above.
+
+    Note that we set to [Vundef] the registers used as temporaries by
+    the expansions of the pseudo-instructions, so that the Patmos code
+    we generate cannot use those registers to hold values that must
+    survive the execution of the pseudo-instruction.
+
+    Some instructions are never generated, so they are not modeled.
+    Instead, we simply let the processor get Stuck if we encounter one. *)
 Definition exec_instr (f: function) (i: instruction) (rs: regset) (m: mem) : outcome :=
   match i with
   (** 32-bit integer register-register arithmetic *)
-  | Padd    p rd rs1 rs2 => Next (nextinstr (rs#rd <- (Val.add rs##rs1 rs##rs2))) m
+  | Padd    p rd rs1 rs2 => Next (nextinstr (if det_pred p rs then rs#rd <- (Val.add rs##rs1 rs##rs2) else rs)) m
   | Psub    p rd rs1 rs2 => Next (nextinstr (rs#rd <- (Val.sub rs##rs1 rs##rs2))) m
   | Pxor    p rd rs1 rs2 => Next (nextinstr (rs#rd <- (Val.xor rs##rs1 rs##rs2))) m
   | Psl     p rd rs1 rs2 => Next (nextinstr (rs#rd <- (Val.shl rs##rs1 (trim_shift rs##rs2)))) m
@@ -639,37 +655,152 @@ Definition exec_instr (f: function) (i: instruction) (rs: regset) (m: mem) : out
   (** Bitcopy *)
   | Pbcopy p rd rs1 imm ps => Next (nextinstr (rs#rd <- (Val.or (Val.and rs##rs1 (Val.notint (Val.shl Vone (Vint imm)))) (Val.shl (eval_pred ps rs) (Vint imm))))) m
   (** Special moves *)
-  (** TODO: ADD TO SEMANTICS THAT S0 is P0..P7 *)
-  | Pmts p rs1 sd =>  Next (nextinstr (rs#sd <- rs#rs1)) m
-  | Pmfs p rd ss  =>  Next (nextinstr (rs#rd <- rs#ss)) m
+  (** Note that S0 is really an alias for P0...P7 and any other bits are ignored/invalid *)
+  | Pmts p rs1 sd => match sd with
+                     | S0 => Next (nextinstr (rs#P1 <- (get_nth_bit rs#rs1 1)
+                                                #P2 <- (get_nth_bit rs#rs1 2)
+                                                #P3 <- (get_nth_bit rs#rs1 3)
+                                                #P4 <- (get_nth_bit rs#rs1 4)
+                                                #P5 <- (get_nth_bit rs#rs1 5)
+                                                #P6 <- (get_nth_bit rs#rs1 6)
+                                                #P7 <- (get_nth_bit rs#rs1 7))) m
+                     | _  => Next (nextinstr (rs#sd <- (rs#rs1))) m
+                     end
+  | Pmfs p rd ss  => match ss with
+                     | S0 => Next (nextinstr (rs#rd <- (rs#ss))) m
+                     | _  => Next (nextinstr (rs#rd <- (rs#ss))) m
+                     end
   (** Load type *)
-  |
-  |
+  | Plws _ _ _ _
+  | Plwl _ _ _ _
+  | Plwc _ _ _ _ => Stuck
+  | Plwm p rd ra imm => exec_load Mint32 rs m rd ra imm (Int.repr 2)
+  | Plhs _ _ _ _
+  | Plhl _ _ _ _
+  | Plhc _ _ _ _ => Stuck
+  | Plhm p rd ra imm => exec_load Mint16signed rs m rd ra imm Int.one
+  | Plbs _ _ _ _
+  | Plbl _ _ _ _
+  | Plbc _ _ _ _ => Stuck
+  | Plbm p rd ra imm => exec_load Mint8signed rs m rd ra imm Int.zero
+  | Plhus _ _ _ _
+  | Plhul _ _ _ _
+  | Plhuc _ _ _ _ => Stuck
+  | Plhum p rd ra imm => exec_load Mint16unsigned rs m rd ra imm Int.one
+  | Plbus _ _ _ _
+  | Plbul _ _ _ _
+  | Plbuc _ _ _ _ => Stuck
+  | Plbum p rd ra imm => exec_load Mint8unsigned rs m rd ra imm Int.zero
+  (** Store type *)
+  | Psws _ _ _ _
+  | Pswl _ _ _ _
+  | Pswc _ _ _ _ => Stuck
+  | Pswm p ra rs1 imm => exec_store Mint32 rs m rs1 ra imm (Int.repr 2)
+  | Pshs _ _ _ _
+  | Pshl _ _ _ _
+  | Pshc _ _ _ _ => Stuck
+  | Pshm p ra rs1 imm => exec_store Mint16unsigned rs m rs1 ra imm Int.one
+  | Psbs _ _ _ _
+  | Psbl _ _ _ _
+  | Psbc _ _ _ _ => Stuck
+  | Psbm p ra rs1 imm => exec_store Mint8unsigned rs m rs1 ra imm Int.zero
+  (** Register stack control  *)
+  | Psens _ _
+  | Psspill _ _ => Stuck
+  (** Immediate stack control *)
+  | Psres _ _
+  | Psensi _ _
+  | Psfree _ _
+  | Psspilli _ _ => Stuck
+  (** Immediate control flow *)
+  (** TODO: Check if offsets are in words here *)
+  (** TODO: Check if return offset is right or if 1 should be added *)
+  | Pcallnd p l => match label_pos l 0 (fn_code f) with
+                   | None => Stuck
+                   | Some pos =>
+                     match rs#PC with
+                     | Vptr b ofs => Next (rs#SRB <- (Vptr b Ptrofs.zero)
+                                             #SRO <- (Vint (Ptrofs.to_int ofs))
+                                             #PC  <- (Vptr b (Ptrofs.repr pos))) m
+                     | _ => Stuck
+                     end
+                   end
+  | Pcall _ _ => Stuck
+  | Pbrnd p imm => match rs#PC with
+                   | Vptr b ofs => Next (rs#PC <- (Vptr b (Ptrofs.add ofs (Ptrofs.of_int imm)))) m
+                   | _ => Stuck
+                   end
+  | Pbr _ _ => Stuck
+  | Pbrcfnd p l => goto_label f l rs m
+  | Pbrcf _ _ => Stuck
+  | Ptrap _ _ => Stuck (*Next (rs#SXB <- pc block
+                       rs#SXO <- pc offset
+                       rs#PC <- exception index address (table 2.15 in handbook))*)
+  (** Register stack control *)
+  (** TODO: Check if offsets are in bytes here *)
+  (** TODO: Check if return offset is right or if 1 should be added *)
+  | Pcallndr p ra => match rs#PC with
+                     | Vptr b ofs => Next (rs#SRB <- (Vptr b Ptrofs.zero)
+                                             #SRO <- (Vint (Ptrofs.to_int ofs))
+                                             #PC  <- (rs#ra)) m
+                     | _ => Stuck
+                     end
+  | Pcallr _ _ => Stuck
+  | Pbrndr p ra => Next (rs#PC <- (rs#ra)) m
+  | Pbrr _ _ => Stuck
+  | Pbrcfndr p ra ro => Next (rs#PC <- (Val.add rs#PC (Val.add rs#ra rs#ro))) m
+  | Pbrcfr _ _ _ => Stuck
+  (** Return functions *)
+  | Pretnd p => Next (rs#PC <- (Val.add rs#SRB rs#SRO)) m
+  | Pret _ => Stuck
+  | Pxretnd p => Next (rs#PC <- (Val.add rs#SXB rs#SXO)) m
+  | Pxret _ => Stuck
+  (** Pseudo-instructions *)
+  | Pallocframe _ _
+  | Pfreeframe _ _
+  | Plabel _ 
+  | Ploadsymbol _ _ _
+  | Ploadsymbol_high _ _ _
+  | Pbtbl _ _
+  | Pbuiltin _ _ _
+  | Pnop => Stuck
   end.
 
 (** Translation of the LTL/Linear/Mach view of machine registers to
-  the RISC-V view.  Note that no LTL register maps to [X31].  This
-  register is reserved as temporary, to be used by the generated RV32G
-  code.  *)
+  the Patmos view.  Note that no LTL register maps to [GPR29].  This
+  register is reserved as temporary, to be used by the generated
+  Patmos code.  *)
 
 Definition preg_of (r: mreg) : preg :=
   match r with
-               | R5  => X5  | R6  => X6  | R7  => X7
-  | R8  => X8  | R9  => X9  | R10 => X10 | R11 => X11
-  | R12 => X12 | R13 => X13 | R14 => X14 | R15 => X15
-  | R16 => X16 | R17 => X17 | R18 => X18 | R19 => X19
-  | R20 => X20 | R21 => X21 | R22 => X22 | R23 => X23
-  | R24 => X24 | R25 => X25 | R26 => X26 | R27 => X27
-  | R28 => X28 | R29 => X29 | R30 => X30
-
-  | Machregs.F0  => F0  | Machregs.F1  => F1  | Machregs.F2  => F2  | Machregs.F3  => F3
-  | Machregs.F4  => F4  | Machregs.F5  => F5  | Machregs.F6  => F6  | Machregs.F7  => F7
-  | Machregs.F8  => F8  | Machregs.F9  => F9  | Machregs.F10 => F10 | Machregs.F11 => F11
-  | Machregs.F12 => F12 | Machregs.F13 => F13 | Machregs.F14 => F14 | Machregs.F15 => F15
-  | Machregs.F16 => F16 | Machregs.F17 => F17 | Machregs.F18 => F18 | Machregs.F19 => F19
-  | Machregs.F20 => F20 | Machregs.F21 => F21 | Machregs.F22 => F22 | Machregs.F23 => F23
-  | Machregs.F24 => F24 | Machregs.F25 => F25 | Machregs.F26 => F26 | Machregs.F27 => F27
-  | Machregs.F28 => F28 | Machregs.F29 => F29 | Machregs.F30 => F30 | Machregs.F31 => F31
+  | R1  => GPR1
+  | R2  => GPR2
+  | R3  => GPR3
+  | R4  => GPR4
+  | R5  => GPR5
+  | R6  => GPR6
+  | R7  => GPR7
+  | R8  => GPR8
+  | R9  => GPR9
+  | R10 => GPR10
+  | R11 => GPR11
+  | R12 => GPR12
+  | R13 => GPR13
+  | R14 => GPR14
+  | R15 => GPR15
+  | R16 => GPR16
+  | R17 => GPR17
+  | R18 => GPR18
+  | R19 => GPR19
+  | R20 => GPR20
+  | R21 => GPR21
+  | R22 => GPR22
+  | R23 => GPR23
+  | R24 => GPR24
+  | R25 => GPR25
+  | R26 => GPR26
+  | R27 => GPR27
+  | R28 => GPR28
   end.
 
 (** Undefine all registers except SP and callee-save registers *)
@@ -683,7 +814,7 @@ Definition undef_caller_save_regs (rs: regset) : regset :=
 
 (** Extract the values of the arguments of an external call.
     We exploit the calling conventions from module [Conventions], except that
-    we use RISC-V registers instead of locations. *)
+    we use Patmos registers instead of locations. *)
 
 Inductive extcall_arg (rs: regset) (m: mem): loc -> val -> Prop :=
   | extcall_arg_reg: forall r,
