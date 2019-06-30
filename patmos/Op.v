@@ -49,7 +49,7 @@ Inductive condition : Type :=
 Inductive operation : Type :=
   | Omove                    (**r [rd = r1] *)
   | Ointconst (n: int)       (**r [rd] is set to the given integer constant *)
-  | Ofloatconst (n: float)   (**r [rd] is set to the given float constant *)
+  | Ofloatconst (n: float32)   (**r [rd] is set to the given float constant *)
   | Osingleconst (n: float32)(**r [rd] is set to the given float constant *)
   | Oaddrsymbol (id: ident) (ofs: ptrofs)  (**r [rd] is set to the address of the symbol plus the given offset *)
   | Oaddrstack (ofs: ptrofs) (**r [rd] is set to the stack pointer plus the given offset *)
