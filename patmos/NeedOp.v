@@ -21,7 +21,7 @@ Require Import Values Memory Globalenvs.
 Require Import Op RTL.
 Require Import NeedDomain.
 
-(** Neededness analysis for RISC-V operators *)
+(** Neededness analysis for Patmos operators *)
 
 Definition op1 (nv: nval) := nv :: nil.
 Definition op2 (nv: nval) := nv :: nv :: nil.
@@ -32,7 +32,6 @@ Definition needs_of_operation (op: operation) (nv: nval): list nval :=
   match op with
   | Omove => op1 nv
   | Ointconst n => nil
-  | Olongconst n => nil
   | Ofloatconst n => nil
   | Osingleconst n => nil
   | Oaddrsymbol id ofs => nil
@@ -44,7 +43,7 @@ Definition needs_of_operation (op: operation) (nv: nval): list nval :=
   | Oneg => op1 (modarith nv)
   | Osub => op2 (default nv)
   | Omul => op2 (modarith nv)
-  | Omulhs | Omulhu | Odiv | Odivu | Omod | Omodu => op2 (default nv)
+  | Omulhs | Omulhu  => op2 (default nv)
   | Oand => op2 (bitwise nv)
   | Oandimm n => op1 (andimm nv n)
   | Oor => op2 (bitwise nv)
@@ -56,36 +55,6 @@ Definition needs_of_operation (op: operation) (nv: nval): list nval :=
   | Oshrimm n => op1 (shrimm nv n)
   | Oshruimm n => op1 (shruimm nv n)
   | Oshrximm n => op1 (default nv)
-  | Omakelong => op2 (default nv)
-  | Olowlong | Ohighlong => op1 (default nv)
-  | Ocast32signed => op1 (default nv)
-  | Ocast32unsigned => op1 (default nv)
-  | Oaddl => op2 (default nv)
-  | Oaddlimm n => op1 (default nv)
-  | Onegl => op1 (default nv)
-  | Osubl => op2 (default nv)
-  | Omull => op2 (default nv)
-  | Omullhs | Omullhu | Odivl | Odivlu | Omodl | Omodlu => op2 (default nv)
-  | Oandl => op2 (default nv)
-  | Oandlimm n => op1 (default nv)
-  | Oorl => op2 (default nv)
-  | Oorlimm n => op1 (default nv)
-  | Oxorl => op2 (default nv)
-  | Oxorlimm n => op1 (default nv)
-  | Oshll | Oshrl | Oshrlu => op2 (default nv)
-  | Oshllimm n => op1 (default nv)
-  | Oshrlimm n => op1 (default nv)
-  | Oshrluimm n => op1 (default nv)
-  | Oshrxlimm n => op1 (default nv)
-  | Onegf | Oabsf => op1 (default nv)
-  | Oaddf | Osubf | Omulf | Odivf => op2 (default nv)
-  | Onegfs | Oabsfs => op1 (default nv)
-  | Oaddfs | Osubfs | Omulfs | Odivfs => op2 (default nv)
-  | Ofloatofsingle | Osingleoffloat => op1 (default nv)
-  | Ointoffloat | Ointuoffloat | Ofloatofint | Ofloatofintu => op1 (default nv)
-  | Olongoffloat | Olonguoffloat | Ofloatoflong | Ofloatoflongu => op1 (default nv)
-  | Ointofsingle | Ointuofsingle | Osingleofint | Osingleofintu => op1 (default nv)
-  | Olongofsingle | Olonguofsingle | Osingleoflong | Osingleoflongu => op1 (default nv)
   | Ocmp c => needs_of_condition c
   end.
 
