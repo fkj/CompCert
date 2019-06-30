@@ -15,7 +15,7 @@
 open Camlcoq
 open Machregs
 
-let register_names : (mreg, string) Hashtbl.t = Hashtbl.create 31
+let register_names : (mreg, string) Hashtbl.t = Hashtbl.create 28
 
 let _ =
   List.iter
