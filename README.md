@@ -1,10 +1,12 @@
-# CompCert
+# CompCert for Patmos
 The verified C compiler.
+
+Please note that the Patmos implementation is not currently functional.
 
 ## Overview
 The CompCert C verified compiler is a compiler for a large subset of the
-C programming language that generates code for the PowerPC, ARM, x86 and
-RISC-V processors.
+C programming language that generates code for the PowerPC, ARM, x86,
+RISC-V, and now Patmos processors.
 
 The distinguishing feature of CompCert is that it has been formally
 verified using the Coq proof assistant: the generated assembly code is
