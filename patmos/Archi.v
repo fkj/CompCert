@@ -37,7 +37,7 @@ Qed.
 (** Except when otherwise stated, if the result of a
    floating-point operation is NaN, it is the canonical NaN. The
    canonical NaN has a positive sign and all significand bits clear
-   except the MSB, a.k.a. the quiet bit."
+   except the MSB, a.k.a. the quiet bit.
    We need to extend the [choose_binop_pl] functions to account for
    this case. *)
 
