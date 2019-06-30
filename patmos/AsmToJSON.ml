@@ -10,7 +10,7 @@
 (*                                                                     *)
 (* *********************************************************************)
 
-(* Simple functions to serialize RISC-V Asm to JSON *)
+(* Simple functions to serialize Patmos Asm to JSON *)
 
 (* Dummy function *)
 let destination: string option ref = ref None
