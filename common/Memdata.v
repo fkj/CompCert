@@ -37,8 +37,8 @@ Definition size_chunk (chunk: memory_chunk) : Z :=
   | Mint16unsigned => 2
   | Mint32 => 4
   | Mint64 => 8
-  | Mfloat32 => 4
-  | Mfloat64 => 8
+  | Mfloat32s => 4
+  | Mfloat32d => 4
   | Many32 => 4
   | Many64 => 8
   end.
@@ -91,8 +91,8 @@ Definition align_chunk (chunk: memory_chunk) : Z :=
   | Mint16unsigned => 2
   | Mint32 => 4
   | Mint64 => 8
-  | Mfloat32 => 4
-  | Mfloat64 => 4
+  | Mfloat32d => 4
+  | Mfloat32s => 4
   | Many32 => 4
   | Many64 => 4
   end.
@@ -373,8 +373,8 @@ Definition encode_val (chunk: memory_chunk) (v: val) : list memval :=
   | Vptr b ofs, Mint32 => if Archi.ptr64 then list_repeat 4%nat Undef else inj_value Q32 v
   | Vlong n, Mint64 => inj_bytes (encode_int 8%nat (Int64.unsigned n))
   | Vptr b ofs, Mint64 => if Archi.ptr64 then inj_value Q64 v else list_repeat 8%nat Undef
-  | Vsingle n, Mfloat32 => inj_bytes (encode_int 4%nat (Int.unsigned (Float32.to_bits n)))
-  | Vfloat n, Mfloat64 => inj_bytes (encode_int 8%nat (Int64.unsigned (Float.to_bits n)))
+  | Vsingle n, Mfloat32s => inj_bytes (encode_int 4%nat (Int.unsigned (Float32.to_bits n)))
+  | Vfloat n, Mfloat32d => inj_bytes (encode_int 4%nat (Int.unsigned (Float32.to_bits n)))
   | _, Many32 => inj_value Q32 v
   | _, Many64 => inj_value Q64 v
   | _, _ => list_repeat (size_chunk_nat chunk) Undef
@@ -390,8 +390,8 @@ Definition decode_val (chunk: memory_chunk) (vl: list memval) : val :=
       | Mint16unsigned => Vint(Int.zero_ext 16 (Int.repr (decode_int bl)))
       | Mint32 => Vint(Int.repr(decode_int bl))
       | Mint64 => Vlong(Int64.repr(decode_int bl))
-      | Mfloat32 => Vsingle(Float32.of_bits (Int.repr (decode_int bl)))
-      | Mfloat64 => Vfloat(Float.of_bits (Int64.repr (decode_int bl)))
+      | Mfloat32s => Vsingle(Float32.of_bits (Int.repr (decode_int bl)))
+      | Mfloat32d => Vfloat(Float32.of_bits (Int.repr (decode_int bl)))
       | Many32 => Vundef
       | Many64 => Vundef
       end
@@ -449,7 +449,7 @@ Proof.
   intros. unfold proj_value. destruct (inj_value q2 v) eqn:V. auto. destruct m; auto.
   destruct (in_inj_value (Fragment v0 q n) v q2) as [n' EQ].
   rewrite V; auto with coqlib. inv EQ.
-  destruct (size_quantity_nat_pos q1) as [p EQ1]; rewrite EQ1; simpl.
+-  destruct (size_quantity_nat_pos q1) as [p EQ1]; rewrite EQ1; simpl.
   unfold proj_sumbool. rewrite dec_eq_true. rewrite dec_eq_false by congruence. auto.
 Qed.
 
@@ -466,9 +466,9 @@ Definition decode_encode_val (v1: val) (chunk1 chunk2: memory_chunk) (v2: val) :
   | Vint n, Mint16unsigned, Mint16unsigned => v2 = Vint(Int.zero_ext 16 n)
   | Vint n, Mint32, Mint32 => v2 = Vint n
   | Vint n, Many32, Many32 => v2 = Vint n
-  | Vint n, Mint32, Mfloat32 => v2 = Vsingle(Float32.of_bits n)
+  | Vint n, Mint32, Mfloat32s => v2 = Vsingle(Float32.of_bits n)
   | Vint n, Many64, Many64 => v2 = Vint n
-  | Vint n, (Mint64 | Mfloat32 | Mfloat64 | Many64), _ => v2 = Vundef
+  | Vint n, (Mint64 | Mfloat32s | Mfloat32d | Many64), _ => v2 = Vundef
   | Vint n, _, _ => True (**r nothing meaningful to say about v2 *)
   | Vptr b ofs, (Mint32 | Many32), (Mint32 | Many32) => v2 = if Archi.ptr64 then Vundef else Vptr b ofs
   | Vptr b ofs, Mint64, (Mint64 | Many64) => v2 = if Archi.ptr64 then Vptr b ofs else Vundef
@@ -476,20 +476,20 @@ Definition decode_encode_val (v1: val) (chunk1 chunk2: memory_chunk) (v2: val) :
   | Vptr b ofs, Many64, Mint64 => v2 = if Archi.ptr64 then Vptr b ofs else Vundef
   | Vptr b ofs, _, _ => v2 = Vundef
   | Vlong n, Mint64, Mint64 => v2 = Vlong n
-  | Vlong n, Mint64, Mfloat64 => v2 = Vfloat(Float.of_bits n)
   | Vlong n, Many64, Many64 => v2 = Vlong n
-  | Vlong n, (Mint8signed|Mint8unsigned|Mint16signed|Mint16unsigned|Mint32|Mfloat32|Mfloat64|Many32), _ => v2 = Vundef
+  | Vlong n, (Mint8signed|Mint8unsigned|Mint16signed|Mint16unsigned|Mint32|Mfloat32s|Mfloat32d|Many32), _ => v2 = Vundef
   | Vlong n, _, _ => True (**r nothing meaningful to say about v2 *)
-  | Vfloat f, Mfloat64, Mfloat64 => v2 = Vfloat f
-  | Vfloat f, Mfloat64, Mint64 => v2 = Vlong(Float.to_bits f)
+  | Vfloat f, Mfloat32d, Mfloat32d => v2 = Vfloat f
+  | Vfloat f, Mfloat32d, Mint32 => v2 = Vint(Float32.to_bits f) 
+  | Vfloat f, Many32, Many32 => v2 = Vfloat f
   | Vfloat f, Many64, Many64 => v2 = Vfloat f
-  | Vfloat f, (Mint8signed|Mint8unsigned|Mint16signed|Mint16unsigned|Mint32|Mfloat32|Mint64|Many32), _ => v2 = Vundef
+  | Vfloat f, (Mint8signed|Mint8unsigned|Mint16signed|Mint16unsigned|Mint32|Mfloat32s|Mint64|Many64), _ => v2 = Vundef
   | Vfloat f, _, _ => True   (* nothing interesting to say about v2 *)
-  | Vsingle f, Mfloat32, Mfloat32 => v2 = Vsingle f
-  | Vsingle f, Mfloat32, Mint32 => v2 = Vint(Float32.to_bits f)
+  | Vsingle f, Mfloat32s, Mfloat32s => v2 = Vsingle f
+  | Vsingle f, Mfloat32s, Mint32 => v2 = Vint(Float32.to_bits f)
   | Vsingle f, Many32, Many32 => v2 = Vsingle f
   | Vsingle f, Many64, Many64 => v2 = Vsingle f
-  | Vsingle f, (Mint8signed|Mint8unsigned|Mint16signed|Mint16unsigned|Mint32|Mint64|Mfloat64|Many64), _ => v2 = Vundef
+  | Vsingle f, (Mint8signed|Mint8unsigned|Mint16signed|Mint16unsigned|Mint32|Mint64|Mfloat32d|Many64), _ => v2 = Vundef
   | Vsingle f, _, _ => True (* nothing interesting to say about v2 *)
   end.
 
@@ -530,8 +530,8 @@ Opaque inj_value.
   destruct v; destruct chunk1 eqn:C1; try (apply decode_val_undef);
   destruct chunk2 eqn:C2; unfold decode_encode_val, decode_val, encode_val, Val.load_result;
   repeat solve_decode_encode_val_general.
-- rewrite Float.of_to_bits; auto.
-- rewrite Float32.of_to_bits; auto.
+  - rewrite Float32.of_to_bits; auto.
+  - rewrite Float32.of_to_bits; auto.
 Qed.
 
 Lemma decode_encode_val_similar:
@@ -617,7 +617,7 @@ Qed.
 
 Definition quantity_chunk (chunk: memory_chunk) :=
   match chunk with
-  | Mint64 | Mfloat64 | Many64 => Q64
+  | Mint64 | Many64 => Q64
   | _ => Q32
   end.
 

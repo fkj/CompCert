@@ -37,7 +37,7 @@ Inductive val: Type :=
   | Vundef: val
   | Vint: int -> val
   | Vlong: int64 -> val
-  | Vfloat: float -> val
+  | Vfloat: float32 -> val
   | Vsingle: float32 -> val
   | Vptr: block -> ptrofs -> val.
 
@@ -67,7 +67,7 @@ Proof.
   decide equality.
   apply Int.eq_dec.
   apply Int64.eq_dec.
-  apply Float.eq_dec.
+  apply Float32.eq_dec.
   apply Float32.eq_dec.
   apply Ptrofs.eq_dec.
   apply eq_block.
@@ -83,7 +83,7 @@ Definition has_type (v: val) (t: typ) : Prop :=
   | Vsingle _, Tsingle => True
   | Vptr _ _, Tint => Archi.ptr64 = false
   | Vptr _ _, Tlong => Archi.ptr64 = true
-  | (Vint _ | Vsingle _), Tany32 => True
+  | (Vint _ | Vsingle _ | Vfloat _ ), Tany32 => True
   | Vptr _ _, Tany32 => Archi.ptr64 = false
   | _, Tany64 => True
   | _, _ => False
@@ -120,7 +120,8 @@ Lemma has_subtype:
 Proof.
   intros. destruct ty1; destruct ty2; simpl in H;
   (contradiction || discriminate || assumption || idtac);
-  unfold has_type in *; destruct v; auto; contradiction.
+  unfold has_type in *; destruct v; auto. contradiction.
+  exfalso. apply H0.
 Qed.
 
 Lemma has_subtype_list:
@@ -150,13 +151,13 @@ Definition neg (v: val) : val :=
 
 Definition negf (v: val) : val :=
   match v with
-  | Vfloat f => Vfloat (Float.neg f)
+  | Vfloat f => Vfloat (Float32.neg f)
   | _ => Vundef
   end.
 
 Definition absf (v: val) : val :=
   match v with
-  | Vfloat f => Vfloat (Float.abs f)
+  | Vfloat f => Vfloat (Float32.abs f)
   | _ => Vundef
   end.
 
@@ -177,25 +178,25 @@ Definition maketotal (ov: option val) : val :=
 
 Definition intoffloat (v: val) : option val :=
   match v with
-  | Vfloat f => option_map Vint (Float.to_int f)
+  | Vfloat f => option_map Vint (Float32.to_int f)
   | _ => None
   end.
 
 Definition intuoffloat (v: val) : option val :=
   match v with
-  | Vfloat f => option_map Vint (Float.to_intu f)
+  | Vfloat f => option_map Vint (Float32.to_intu f)
   | _ => None
   end.
 
 Definition floatofint (v: val) : option val :=
   match v with
-  | Vint n => Some (Vfloat (Float.of_int n))
+  | Vint n => Some (Vfloat (Float32.of_int n))
   | _ => None
   end.
 
 Definition floatofintu (v: val) : option val :=
   match v with
-  | Vint n => Some (Vfloat (Float.of_intu n))
+  | Vint n => Some (Vfloat (Float32.of_intu n))
   | _ => None
   end.
 
@@ -265,13 +266,13 @@ Definition sign_ext (nbits: Z) (v: val) : val :=
 
 Definition singleoffloat (v: val) : val :=
   match v with
-  | Vfloat f => Vsingle (Float.to_single f)
+  | Vfloat f => Vsingle f
   | _ => Vundef
   end.
 
 Definition floatofsingle (v: val) : val :=
   match v with
-  | Vsingle f => Vfloat (Float.of_single f)
+  | Vsingle f => Vfloat f
   | _ => Vundef
   end.
 
@@ -446,31 +447,25 @@ Definition ror (v1 v2: val): val :=
 
 Definition addf (v1 v2: val): val :=
   match v1, v2 with
-  | Vfloat f1, Vfloat f2 => Vfloat(Float.add f1 f2)
+  | Vfloat f1, Vfloat f2 => Vfloat(Float32.add f1 f2)
   | _, _ => Vundef
   end.
 
 Definition subf (v1 v2: val): val :=
   match v1, v2 with
-  | Vfloat f1, Vfloat f2 => Vfloat(Float.sub f1 f2)
+  | Vfloat f1, Vfloat f2 => Vfloat(Float32.sub f1 f2)
   | _, _ => Vundef
   end.
 
 Definition mulf (v1 v2: val): val :=
   match v1, v2 with
-  | Vfloat f1, Vfloat f2 => Vfloat(Float.mul f1 f2)
+  | Vfloat f1, Vfloat f2 => Vfloat(Float32.mul f1 f2)
   | _, _ => Vundef
   end.
 
 Definition divf (v1 v2: val): val :=
   match v1, v2 with
-  | Vfloat f1, Vfloat f2 => Vfloat(Float.div f1 f2)
-  | _, _ => Vundef
-  end.
-
-Definition floatofwords (v1 v2: val) : val :=
-  match v1, v2 with
-  | Vint n1, Vint n2 => Vfloat (Float.from_words n1 n2)
+  | Vfloat f1, Vfloat f2 => Vfloat(Float32.div f1 f2)
   | _, _ => Vundef
   end.
 
@@ -544,13 +539,13 @@ Definition longofintu (v: val) : val :=
 
 Definition longoffloat (v: val) : option val :=
   match v with
-  | Vfloat f => option_map Vlong (Float.to_long f)
+  | Vfloat f => option_map Vlong (Float32.to_long f)
   | _ => None
   end.
 
 Definition longuoffloat (v: val) : option val :=
   match v with
-  | Vfloat f => option_map Vlong (Float.to_longu f)
+  | Vfloat f => option_map Vlong (Float32.to_longu f)
   | _ => None
   end.
 
@@ -568,13 +563,13 @@ Definition longuofsingle (v: val) : option val :=
 
 Definition floatoflong (v: val) : option val :=
   match v with
-  | Vlong n => Some (Vfloat (Float.of_long n))
+  | Vlong n => Some (Vfloat (Float32.of_long n))
   | _ => None
   end.
 
 Definition floatoflongu (v: val) : option val :=
   match v with
-  | Vlong n => Some (Vfloat (Float.of_longu n))
+  | Vlong n => Some (Vfloat (Float32.of_longu n))
   | _ => None
   end.
 
@@ -817,7 +812,7 @@ Definition cmpu_bool (c: comparison) (v1 v2: val): option bool :=
 
 Definition cmpf_bool (c: comparison) (v1 v2: val): option bool :=
   match v1, v2 with
-  | Vfloat f1, Vfloat f2 => Some (Float.cmp c f1 f2)
+  | Vfloat f1, Vfloat f2 => Some (Float32.cmp c f1 f2)
   | _, _ => None
   end.
 
@@ -917,9 +912,9 @@ Definition load_result (chunk: memory_chunk) (v: val) :=
   | Mint32, Vptr b ofs => if Archi.ptr64 then Vundef else Vptr b ofs
   | Mint64, Vlong n => Vlong n
   | Mint64, Vptr b ofs => if Archi.ptr64 then Vptr b ofs else Vundef
-  | Mfloat32, Vsingle f => Vsingle f
-  | Mfloat64, Vfloat f => Vfloat f
-  | Many32, (Vint _ | Vsingle _) => v
+  | Mfloat32s, Vsingle f => Vsingle f
+  | Mfloat32d, Vfloat f => Vfloat f
+  | Many32, (Vint _ | Vsingle _ | Vfloat _ ) => v
   | Many32, Vptr _ _ => if Archi.ptr64 then Vundef else v
   | Many64, _ => v
   | _, _ => Vundef
@@ -1752,30 +1747,30 @@ Theorem negate_cmpf_eq:
   forall v1 v2, notbool (cmpf Cne v1 v2) = cmpf Ceq v1 v2.
 Proof.
   destruct v1; destruct v2; auto. unfold cmpf, cmpf_bool.
-  rewrite Float.cmp_ne_eq. destruct (Float.cmp Ceq f f0); auto.
+  rewrite Float32.cmp_ne_eq. destruct (Float32.cmp Ceq f f0); auto.
 Qed.
 
 Theorem negate_cmpf_ne:
   forall v1 v2, notbool (cmpf Ceq v1 v2) = cmpf Cne v1 v2.
 Proof.
   destruct v1; destruct v2; auto. unfold cmpf, cmpf_bool.
-  rewrite Float.cmp_ne_eq. destruct (Float.cmp Ceq f f0); auto.
+  rewrite Float32.cmp_ne_eq. destruct (Float32.cmp Ceq f f0); auto.
 Qed.
 
 Theorem cmpf_le:
   forall v1 v2, cmpf Cle v1 v2 = or (cmpf Clt v1 v2) (cmpf Ceq v1 v2).
 Proof.
   destruct v1; destruct v2; auto. unfold cmpf, cmpf_bool.
-  rewrite Float.cmp_le_lt_eq.
-  destruct (Float.cmp Clt f f0); destruct (Float.cmp Ceq f f0); auto.
+  rewrite Float32.cmp_le_lt_eq.
+  destruct (Float32.cmp Clt f f0); destruct (Float32.cmp Ceq f f0); auto.
 Qed.
 
 Theorem cmpf_ge:
   forall v1 v2, cmpf Cge v1 v2 = or (cmpf Cgt v1 v2) (cmpf Ceq v1 v2).
 Proof.
   destruct v1; destruct v2; auto. unfold cmpf, cmpf_bool.
-  rewrite Float.cmp_ge_gt_eq.
-  destruct (Float.cmp Cgt f f0); destruct (Float.cmp Ceq f f0); auto.
+  rewrite Float32.cmp_ge_gt_eq.
+  destruct (Float32.cmp Cgt f f0); destruct (Float32.cmp Ceq f f0); auto.
 Qed.
 
 Theorem cmp_ne_0_optbool:

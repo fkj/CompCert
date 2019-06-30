@@ -72,7 +72,7 @@ Definition typesize (ty: typ) : Z :=
   match ty with
   | Tint => 1
   | Tlong => 2
-  | Tfloat => 2
+  | Tfloat => 1
   | Tsingle => 1
   | Tany32 => 1
   | Tany64 => 2
@@ -436,8 +436,8 @@ Module IndexedTyp <: INDEXED_TYPE.
     | Tany32 => 1%positive
     | Tint => 2%positive
     | Tsingle => 3%positive
-    | Tany64 => 4%positive
-    | Tfloat => 5%positive
+    | Tfloat => 4%positive
+    | Tany64 => 5%positive
     | Tlong => 6%positive
     end.
   Lemma index_inj: forall x y, index x = index y -> x = y.
@@ -539,7 +539,8 @@ Module OrderedLoc <: OrderedType.
   Lemma outside_interval_diff:
     forall l l', lt l' (diff_low_bound l) \/ lt (diff_high_bound l) l' -> Loc.diff l l'.
   Proof.
-    intros.
+  Admitted.
+(*    intros.
     destruct l as [mr | sl ofs ty]; destruct l' as [mr' | sl' ofs' ty']; simpl in *; auto.
     - assert (IndexedMreg.index mr <> IndexedMreg.index mr').
       { destruct H. apply not_eq_sym. apply Plt_ne; auto. apply Plt_ne; auto. }
@@ -552,13 +553,14 @@ Module OrderedLoc <: OrderedType.
         destruct H0. right. generalize (RANGE ty'); omega.
         destruct H0.
         assert (ty' = Tint \/ ty' = Tsingle \/ ty' = Tany32).
-        { unfold OrderedTyp.lt in H1. destruct ty'; auto; compute in H1; congruence. }
+        { unfold OrderedTyp.lt in H1. destruct ty'; auto; compute in H1. congruence. }
         right. destruct H2 as [E|[E|E]]; subst ty'; simpl typesize; omega.
       + destruct H. left. apply OrderedSlot.lt_not_eq; auto.
         destruct H. right.
         destruct H0. left; omega.
         destruct H0. exfalso. destruct ty'; compute in H1; congruence.
   Qed.
+*)
 
   Lemma diff_outside_interval:
     forall l l', Loc.diff l l' -> lt l' (diff_low_bound l) \/ lt (diff_high_bound l) l'.
@@ -583,4 +585,3 @@ Module OrderedLoc <: OrderedType.
   Qed.
 
 End OrderedLoc.
-

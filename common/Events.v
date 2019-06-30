@@ -57,7 +57,7 @@ Require Import Globalenvs.
 Inductive eventval: Type :=
   | EVint: int -> eventval
   | EVlong: int64 -> eventval
-  | EVfloat: float -> eventval
+  | EVfloat: float32 -> eventval
   | EVsingle: float32 -> eventval
   | EVptr_global: ident -> ptrofs -> eventval.
 

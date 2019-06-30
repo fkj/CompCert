@@ -629,8 +629,8 @@ Definition store_init_data (m: mem) (b: block) (p: Z) (id: init_data) : option m
   | Init_int16 n => Mem.store Mint16unsigned m b p (Vint n)
   | Init_int32 n => Mem.store Mint32 m b p (Vint n)
   | Init_int64 n => Mem.store Mint64 m b p (Vlong n)
-  | Init_float32 n => Mem.store Mfloat32 m b p (Vsingle n)
-  | Init_float64 n => Mem.store Mfloat64 m b p (Vfloat n)
+  | Init_float32s n => Mem.store Mfloat32s m b p (Vsingle n)
+  | Init_float32d n => Mem.store Mfloat32d m b p (Vfloat n)
   | Init_addrof symb ofs =>
       match find_symbol ge symb with
       | None => None
@@ -922,8 +922,8 @@ Definition bytes_of_init_data (i: init_data): list memval :=
   | Init_int16 n => inj_bytes (encode_int 2%nat (Int.unsigned n))
   | Init_int32 n => inj_bytes (encode_int 4%nat (Int.unsigned n))
   | Init_int64 n => inj_bytes (encode_int 8%nat (Int64.unsigned n))
-  | Init_float32 n => inj_bytes (encode_int 4%nat (Int.unsigned (Float32.to_bits n)))
-  | Init_float64 n => inj_bytes (encode_int 8%nat (Int64.unsigned (Float.to_bits n)))
+  | Init_float32s n => inj_bytes (encode_int 4%nat (Int.unsigned (Float32.to_bits n)))
+  | Init_float32d n => inj_bytes (encode_int 4%nat (Int.unsigned (Float32.to_bits n)))
   | Init_space n => list_repeat (Z.to_nat n) (Byte Byte.zero)
   | Init_addrof id ofs =>
       match find_symbol ge id with
@@ -998,8 +998,8 @@ Definition read_as_zero (m: mem) (b: block) (ofs len: Z) : Prop :=
   Some (match chunk with
         | Mint8unsigned | Mint8signed | Mint16unsigned | Mint16signed | Mint32 => Vint Int.zero
         | Mint64 => Vlong Int64.zero
-        | Mfloat32 => Vsingle Float32.zero
-        | Mfloat64 => Vfloat Float.zero
+        | Mfloat32s => Vsingle Float32.zero
+        | Mfloat32d => Vfloat Float32.zero
         | Many32 | Many64 => Vundef
         end).
 
@@ -1041,12 +1041,12 @@ Fixpoint load_store_init_data (m: mem) (b: block) (p: Z) (il: list init_data) {s
   | Init_int64 n :: il' =>
       Mem.load Mint64 m b p = Some(Vlong n)
       /\ load_store_init_data m b (p + 8) il'
-  | Init_float32 n :: il' =>
-      Mem.load Mfloat32 m b p = Some(Vsingle n)
+  | Init_float32s n :: il' =>
+      Mem.load Mfloat32s m b p = Some(Vsingle n)
       /\ load_store_init_data m b (p + 4) il'
-  | Init_float64 n :: il' =>
-      Mem.load Mfloat64 m b p = Some(Vfloat n)
-      /\ load_store_init_data m b (p + 8) il'
+  | Init_float32d n :: il' =>
+      Mem.load Mfloat32d m b p = Some(Vfloat n)
+      /\ load_store_init_data m b (p + 4) il'
   | Init_addrof symb ofs :: il' =>
       (exists b', find_symbol ge symb = Some b' /\ Mem.load Mptr m b p = Some(Vptr b' ofs))
       /\ load_store_init_data m b (p + size_chunk Mptr) il'
@@ -1088,8 +1088,8 @@ Proof.
 + split; auto. eapply (A Mint16unsigned (Vint i)); eauto.
 + split; auto. eapply (A Mint32 (Vint i)); eauto.
 + split; auto. eapply (A Mint64 (Vlong i)); eauto.
-+ split; auto. eapply (A Mfloat32 (Vsingle f)); eauto.
-+ split; auto. eapply (A Mfloat64 (Vfloat f)); eauto.
++ split; auto. eapply (A Mfloat32s (Vsingle f)); eauto.
++ split; auto. eapply (A Mfloat32d (Vfloat f)); eauto.
 + split; auto.
   set (P := fun (b': block) ofs' => ofs' < p + init_data_size (Init_space z)).
   inv Heqo. apply read_as_zero_unchanged with (m := m1) (P := P).
@@ -1470,8 +1470,8 @@ Definition init_data_alignment (i: init_data) : Z :=
   | Init_int16 n => 2
   | Init_int32 n => 4
   | Init_int64 n => 8
-  | Init_float32 n => 4
-  | Init_float64 n => 4
+  | Init_float32s n => 4
+  | Init_float32d n => 4
   | Init_addrof symb ofs => if Archi.ptr64 then 8 else 4
   | Init_space n => 1
   end.
