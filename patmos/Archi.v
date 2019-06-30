@@ -14,7 +14,7 @@
 (*                                                                     *)
 (* *********************************************************************)
 
-(** Architecture-dependent parameters for RISC-V *)
+(** Architecture-dependent parameters for Patmos *)
 
 Require Import ZArith.
 Require Import Fappli_IEEE.
@@ -22,7 +22,7 @@ Require Import Fappli_IEEE_bits.
 
 Parameter ptr64 : bool.
 
-Definition big_endian := false.
+Definition big_endian := true.
 
 Definition align_int64 := 8%Z.
 Definition align_float64 := 8%Z.
@@ -34,7 +34,7 @@ Proof.
   unfold splitlong. destruct ptr64; simpl; congruence. 
 Qed.
 
-(** Section 7.3: "Except when otherwise stated, if the result of a
+(** Except when otherwise stated, if the result of a
    floating-point operation is NaN, it is the canonical NaN. The
    canonical NaN has a positive sign and all significand bits clear
    except the MSB, a.k.a. the quiet bit."
